@@ -1,13 +1,5 @@
-"""List or read launchd job details
-
-Does not manage:
-- StartupItems (/Library/StartupItems), which will be deprecated.
-- LoginItems helper bundles
-- Launch Services loginitems using shared file list.
-- LoginHook via loginwindow prefs.
-- Authorisation database mechanisms/Pre login mechanisms.
-
-
+"""
+List or read launchd job details
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new

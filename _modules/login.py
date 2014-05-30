@@ -88,3 +88,32 @@ def hidden_users():
     users = __salt__['plist.read_key']('/Library/Preferences/com.apple.loginwindow.plist', 'HiddenUsersList')
     return [str(user) for user in users]
 
+
+@depends('plist')
+def picture(path):
+    '''
+    Set the background of the loginwindow to the given path
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' login.picture /path/to/desktop.jpg
+    '''
+    __salt__['plist.write_key']('/Library/Preferences/com.apple.loginwindow.plist', 'DesktopPicture', 'string', path)
+    # TODO: kill loginwindow if already at the loginwindow?
+
+
+@depends('plist')
+def text(value):
+    '''
+    Set some text to be displayed at the bottom of the Login window
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' login.text 'Unauthorized access prohibited'
+    '''
+    __salt__['plist.write_key']('/Library/Preferences/com.apple.loginwindow.plist', 'LoginwindowText', 'string', value)
+    # TODO: kill loginwindow if already at the loginwindow?

@@ -1,12 +1,8 @@
 """
-Enable or disable Bluetooth and Bluetooth Discoverability via BluetoothIO Framework
+Enable or disable Bluetooth and Bluetooth Discoverability via BluetoothIO Framework (private)
 
 Credit to Frederik Seiffert for original blueutil source.
 Credit to github/toy for discoverable state feature.
-
-TODO:
-- Discoverable features currently not working at all.
-- Raise an error trying to execute modifications on a system that doesnt support Bluetooth.
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
@@ -14,49 +10,71 @@ TODO:
 :platform:      darwin
 """
 
+import time
 import logging
 
+log = logging.getLogger(__name__)
+
+HAS_LIBS = False
+try:
+    from ctypes import CDLL, c_int, c_void_p
+
+    IOBluetooth = CDLL('/System/Library/Frameworks/IOBluetooth.framework/Versions/Current/IOBluetooth')
+
+    # Declare private functions in IOBluetooth
+    IOBluetoothPreferencesAvailable = IOBluetooth.IOBluetoothPreferencesAvailable
+    IOBluetoothPreferencesAvailable.restype = c_int
+
+    IOBluetoothPreferenceGetControllerPowerState = IOBluetooth.IOBluetoothPreferenceGetControllerPowerState
+    IOBluetoothPreferenceGetControllerPowerState.restype = c_int
+
+    IOBluetoothPreferenceSetControllerPowerState = IOBluetooth.IOBluetoothPreferenceSetControllerPowerState
+    IOBluetoothPreferenceSetControllerPowerState.restype = c_void_p
+
+    IOBluetoothPreferenceGetDiscoverableState = IOBluetooth.IOBluetoothPreferenceGetDiscoverableState
+    IOBluetoothPreferenceGetDiscoverableState.restype = c_int
+
+    IOBluetoothPreferenceSetDiscoverableState = IOBluetooth.IOBluetoothPreferenceSetDiscoverableState
+    IOBluetoothPreferenceSetDiscoverableState.restype = c_void_p
+
+    HAS_LIBS = True
+except ImportError:
+    log.debug('Execution module not suitable because one or more imports failed.')
 
 __virtualname__ = 'bluetooth'
 
 
 def __virtual__():
+    '''
+    Only load if the platform is correct and we can use PyObjC libs
+    '''
     if __grains__.get('kernel') != 'Darwin':
         return False
-    else:
-        return __virtualname__
 
+    if not HAS_LIBS:
+        return False
 
-import time
-from ctypes import CDLL, c_int, c_void_p
+    # System does not support bluetooth
+    if IOBluetoothPreferencesAvailable() == 0:
+        return False
 
-IOBluetooth = CDLL('/System/Library/Frameworks/IOBluetooth.framework/Versions/Current/IOBluetooth')
-
-# Declare private functions in IOBluetooth
-IOBluetoothPreferencesAvailable = IOBluetooth.IOBluetoothPreferencesAvailable
-IOBluetoothPreferencesAvailable.restype = c_int
-
-IOBluetoothPreferenceGetControllerPowerState = IOBluetooth.IOBluetoothPreferenceGetControllerPowerState
-IOBluetoothPreferenceGetControllerPowerState.restype = c_int
-
-IOBluetoothPreferenceSetControllerPowerState = IOBluetooth.IOBluetoothPreferenceSetControllerPowerState
-IOBluetoothPreferenceSetControllerPowerState.restype = c_void_p
-
-IOBluetoothPreferenceGetDiscoverableState = IOBluetooth.IOBluetoothPreferenceGetDiscoverableState
-IOBluetoothPreferenceGetDiscoverableState.restype = c_int
-
-IOBluetoothPreferenceSetDiscoverableState = IOBluetooth.IOBluetoothPreferenceSetDiscoverableState
-IOBluetoothPreferenceSetDiscoverableState.restype = c_void_p
-
-# Get logging started
-log = logging.getLogger(__name__)
+    return __virtualname__
 
 
 def _btPowerState():
+    '''
+    Get the Bluetooth power status
+
+    0|1
+    '''
     return IOBluetoothPreferenceGetControllerPowerState()
 
 
 def _btSetPowerState(powerState):
+    '''
+    Set the Bluetooth power status
+    :param powerState: 0|1
+    '''
     IOBluetoothPreferenceSetControllerPowerState(powerState)
     time.sleep(
         2)  # There is some delay between changing the power and the getter returning the right information. toy@github estimates 10 seconds.
@@ -67,10 +85,21 @@ def _btSetPowerState(powerState):
 
 
 def _btDiscoverState():
+    '''
+    Is this device discoverable?
+
+    Returns 0 or 1
+    :return:
+    '''
     return IOBluetoothPreferenceGetDiscoverableState()
 
 
 def _btSetDiscoverState(discoverState):
+    '''
+    Set Bluetooth discoverability
+
+    0 or 1
+    '''
     IOBluetoothPreferenceSetDiscoverableState(discoverState)
 
 
@@ -164,7 +193,7 @@ def discoverable():
 
         salt '*' bluetooth.discoverable
     '''
-    if _btDiscoverState == 1:
+    if _btDiscoverState() == 1:
         return True
     else:
         return False

@@ -1,4 +1,5 @@
-"""Query and modify user and system keychains
+"""
+Query and modify user and system keychains
 
 Straight adaptation from pudquick's keymaster.py
 
@@ -11,24 +12,36 @@ Straight adaptation from pudquick's keymaster.py
 import logging
 log = logging.getLogger(__name__)
 
+HAS_LIBS = False
+try:
+    import os.path, base64
+    from ctypes import CDLL, Structure, POINTER, byref, addressof, create_string_buffer, c_int, c_uint, c_ubyte, c_void_p, c_size_t
+    from CoreFoundation import kCFStringEncodingUTF8
+
+    Security    = CDLL('/System/Library/Frameworks/Security.Framework/Versions/Current/Security')
+    # I don't use the pyObjC CoreFoundation import because it attempts to bridge between CF, NS, and python.
+    # When you try to mix it with Security.Foundation (pure C / CF), you get nasty results.
+    # So I directly import CoreFoundation to work with CFTypes to keep it pure of NS/python bridges.
+    CFoundation = CDLL('/System/Library/Frameworks/CoreFoundation.Framework/Versions/Current/CoreFoundation')
+
+    HAS_LIBS = True
+except ImportError:
+    pass
+
 __virtualname__ = 'keychain'
 
 def __virtual__():
+    '''
+    Only load if the platform is correct and we can use PyObjC libs
+    '''
     if __grains__.get('kernel') != 'Darwin':
         return False
-    else:
-        return __virtualname__
 
-import os.path, base64
-from ctypes import CDLL, Structure, POINTER, byref, addressof, create_string_buffer, c_int, c_uint, c_ubyte, c_void_p, c_size_t
-from CoreFoundation import kCFStringEncodingUTF8
+    if not HAS_LIBS:
+        return False
 
-# Wheee!
-Security    = CDLL('/System/Library/Frameworks/Security.Framework/Versions/Current/Security')
-# I don't use the pyObjC CoreFoundation import because it attempts to bridge between CF, NS, and python.
-# When you try to mix it with Security.Foundation (pure C / CF), you get nasty results.
-# So I directly import CoreFoundation to work with CFTypes to keep it pure of NS/python bridges.
-CFoundation = CDLL('/System/Library/Frameworks/CoreFoundation.Framework/Versions/Current/CoreFoundation')
+    return __virtualname__
+
 
 class OpaqueType(Structure):
     pass
@@ -104,12 +117,12 @@ CSSM_DATA._fields_ = [
     ('Data', c_void_p),
     ]
 
-def safe_release(cf_ref):
+def _safe_release(cf_ref):
     if cf_ref:
         CFoundation.CFRelease(cf_ref)
 
 
-def get_keychain_path(a_keychain):
+def _get_keychain_path(a_keychain):
     path_length = c_int(MAXPATHLEN)
     path_name   = create_string_buffer('\0'*(MAXPATHLEN+1), MAXPATHLEN+1)
     result      = Security.SecKeychainGetPath(a_keychain, byref(path_length), path_name)
@@ -117,7 +130,7 @@ def get_keychain_path(a_keychain):
     # helper, which has nice python bindings around C strings / auto detection for null termination
     return path_name.value
 
-def resolve_keychain_name(keychain_name):
+def _resolve_keychain_name(keychain_name):
     # Basically you open a reference and then resolve the path OS X is looking for it at
     keychainRef = OpaqueTypeRef()
     result = Security.SecKeychainOpen(keychain_name, byref(keychainRef))
@@ -125,12 +138,12 @@ def resolve_keychain_name(keychain_name):
         # Weird, it couldn't resolve - this shouldn't happen
         return None
     # Get the path
-    keychain_path = get_keychain_path(keychainRef)
+    keychain_path = _get_keychain_path(keychainRef)
     # Release the ref
-    safe_release(keychainRef)
+    _safe_release(keychainRef)
     return keychain_path
 
-def list_our_keychains(kDomain=None):
+def _list_our_keychains(kDomain=None):
     if not kDomain:
         # Default to user domain
         kDomain = kSecPreferencesDomainUser
@@ -145,14 +158,14 @@ def list_our_keychains(kDomain=None):
     # ... OR it can return a CFArray of them. So you have to check what you're getting.
     if (CFoundation.CFGetTypeID(search_list) == Security.SecKeychainGetTypeID()):
         # It's a SecKeychain, just get the path value directly
-        keychain_paths.append(get_keychain_path(search_list))
+        keychain_paths.append(_get_keychain_path(search_list))
     elif (CFoundation.CFGetTypeID(search_list) == CFoundation.CFArrayGetTypeID()):
         # It's a CFArray of SecKeychains, gotta loop
         count = CFoundation.CFArrayGetCount(search_list)
         for i in range(count):
             # Work with the items one at a time
             a_keychain = CFArrayGetValueAtIndex(search_list, i)
-            keychain_paths.append(get_keychain_path(a_keychain))
+            keychain_paths.append(_get_keychain_path(a_keychain))
     return keychain_paths
 
 # >>> list_our_keychains(kSecPreferencesDomainUser)
@@ -161,11 +174,11 @@ def list_our_keychains(kDomain=None):
 # >>> list_our_keychains(kSecPreferencesDomainSystem)
 # ['/Library/Keychains/System.keychain']
 
-def keychain_present_in_search(keychain_name):
+def _keychain_present_in_search(keychain_name):
     # In the user domain
-    return resolve_keychain_name(keychain_name) in list_our_keychains(kSecPreferencesDomainUser)
+    return _resolve_keychain_name(keychain_name) in _list_our_keychains(kSecPreferencesDomainUser)
 
-def set_keychain_search(keychain_list):
+def _set_keychain_search(keychain_list):
     # In the user domain
     # Note: SecKeychainOpen, by design, does not fail for keychain paths that don't exist.
     # Keychains can be kept on smartcard devices that fall under the 'dynamic' domain
@@ -190,42 +203,42 @@ def set_keychain_search(keychain_list):
             else:
                 # Append the keychain reference and release it
                 result = CFoundation.CFArrayAppendValue(search_arrayRef, keychainRef)
-                safe_release(keychainRef)
+                _safe_release(keychainRef)
     # Attempt to set the search paths
     result = Security.SecKeychainSetDomainSearchList(kSecPreferencesDomainUser, search_arrayRef)
-    safe_release(search_arrayRef)
+    _safe_release(search_arrayRef)
     if (result != 0) or (problem):
         raise Exception('Could not set the search path.', result)
 
-def add_keychain_search(keychain_name):
+def _add_keychain_search(keychain_name):
     # In the user domain
-    if keychain_present_in_search(keychain_name):
+    if _keychain_present_in_search(keychain_name):
         # It's already there, just return
         return
     # Otherwise, need to add it to the search path - it'll go at the end
-    new_path_list = list_our_keychains()
+    new_path_list = _list_our_keychains()
     # Remove it from the list
     new_path_list.append(keychain_name)
     # Set our search path to the new list
-    set_keychain_search(new_path_list)
+    _set_keychain_search(new_path_list)
 
-def remove_keychain_search(keychain_name):
+def _remove_keychain_search(keychain_name):
     # In the user domain, some safety to keep from removing a login keychain
-    if not keychain_present_in_search(keychain_name):
+    if not _keychain_present_in_search(keychain_name):
         # It's not in the search path currently, so just return
         return
-    full_name = resolve_keychain_name(keychain_name)
-    if (full_name == resolve_keychain_name('login.keychain')):
+    full_name = _resolve_keychain_name(keychain_name)
+    if (full_name == _resolve_keychain_name('login.keychain')):
         # Safety feature - don't want to remove the login keychain accidentally
         return
     # Otherwise, it is in the search path - need to remove it
-    new_path_list = list_our_keychains()
+    new_path_list = _list_our_keychains()
     # Remove it from the list
     new_path_list.remove(full_name)
     # Set our search path to the new list
-    set_keychain_search(new_path_list)
+    _set_keychain_search(new_path_list)
 
-def check_keychain_status(keychain_name):
+def _check_keychain_status(keychain_name):
     # In the user domain
     # This is a higher level function the others rely on
     # It checks availability of the keychain and, if available, current state
@@ -249,21 +262,21 @@ def check_keychain_status(keychain_name):
         # Format the integer into a 3 digit binary string ('000','001', etc), map True for 1 & False for 0 per digit,
         # then reverse the order (so they're in order: 1, 2, 4)
         status = [True] + map(lambda x: x=='1','{0:03b}'.format(status_mask.value))[::-1]
-    safe_release(keychainRef)
+    _safe_release(keychainRef)
     return status
 
-def keychain_available(keychain_name):
-    return check_keychain_status(keychain_name)[0]
+def _keychain_available(keychain_name):
+    return _check_keychain_status(keychain_name)[0]
 
-def keychain_unlocked(keychain_name):
+def _keychain_unlocked(keychain_name):
     # Hell, even the security tool won't tell you (directly) if a keychain is unlocked ...
-    exists, unlocked, readable, writable = check_keychain_status(keychain_name)
+    exists, unlocked, readable, writable = _check_keychain_status(keychain_name)
     if not exists:
         raise Exception('Error: No such keychain')
     return unlocked
 
-def lock_keychain(keychain_name):
-    exists, unlocked, readable, writable = check_keychain_status(keychain_name)
+def _lock_keychain(keychain_name):
+    exists, unlocked, readable, writable = _check_keychain_status(keychain_name)
     if not exists:
         raise Exception('Error: No such keychain')
     if not unlocked:
@@ -278,14 +291,14 @@ def lock_keychain(keychain_name):
     # Perform lock
     result = Security.SecKeychainLock(keychainRef)
     # Release the reference
-    safe_release(keychainRef)
+    _safe_release(keychainRef)
     # Report on the result
     if result != 0:
         raise Exception('Error: Non-zero return on lock ..?', result)
 
-def unlock_keychain(keychain_name, password):
+def _unlock_keychain(keychain_name, password):
     # This is baby steps here. I'm not supporting, for instance, UTF-8 yet
-    exists, unlocked, readable, writable = check_keychain_status(keychain_name)
+    exists, unlocked, readable, writable = _check_keychain_status(keychain_name)
     if not exists:
         raise Exception('Error: No such keychain')
     if unlocked:
@@ -300,16 +313,16 @@ def unlock_keychain(keychain_name, password):
         # Perform unlock
     result = Security.SecKeychainUnlock(keychainRef, len(password), password, True)
     # Release the reference
-    safe_release(keychainRef)
+    _safe_release(keychainRef)
     # Report on the result
     if result != 0:
         raise Exception('Error: Non-zero return on unlock ..?', result)
 
-def set_keychain_settings(keychain_name, sleep_lock=False, interval_lock=False, interval_time=2147483647):
+def _set_keychain_settings(keychain_name, sleep_lock=False, interval_lock=False, interval_time=2147483647):
     # If you unlock the keychain before changing settings, you do not get prompted via GUI for non-root
     # Setting the interval time to anything other than the default 2147483647 overrides/ignores any value
     # for interval_lock and forces it to True.
-    exists, unlocked, readable, writable = check_keychain_status(keychain_name)
+    exists, unlocked, readable, writable = _check_keychain_status(keychain_name)
     if not exists:
         raise Exception('Error: No such keychain')
     # Make our settings object
@@ -326,14 +339,14 @@ def set_keychain_settings(keychain_name, sleep_lock=False, interval_lock=False, 
     # Perform settings change
     result = Security.SecKeychainSetSettings(keychainRef, byref(settings_struct))
     # Release the reference
-    safe_release(keychainRef)
+    _safe_release(keychainRef)
     if result != 0:
         raise Exception('Error: Something went wrong with that settings change', result)
 
-def get_keychain_settings(keychain_name):
+def _get_keychain_settings(keychain_name):
     # If you unlock the keychain before changing settings, you do not get prompted via GUI for non-root
     # Results returned are: bool sleep_lock, bool interval_lock, int interval_time (in seconds)
-    exists, unlocked, readable, writable = check_keychain_status(keychain_name)
+    exists, unlocked, readable, writable = _check_keychain_status(keychain_name)
     if not exists:
         raise Exception('Error: No such keychain')
     # Make our settings object, data to be filled in
@@ -348,31 +361,31 @@ def get_keychain_settings(keychain_name):
     # Perform settings change
     result = Security.SecKeychainCopySettings(keychainRef, byref(settings_struct))
     # Release the reference
-    safe_release(keychainRef)
+    _safe_release(keychainRef)
     if result != 0:
         raise Exception('Error: Something went wrong with that settings change', result)
     # Apparently useLockInterval is always false. Whether it will lock or not is purely based on the timer value.
     return (bool(settings_struct.lockOnSleep), settings_struct.lockInterval!=2147483647, settings_struct.lockInterval)
 
-def create_keychain(keychain_name, password, auto_search=True):
+def _create_keychain(keychain_name, password, auto_search=True):
     # The zero is for 'do_prompt' for password
     # The None is for default access rights for the keychain
     if not password:
         raise Exception('Error: Password must be provided')
-    if keychain_available(keychain_name):
+    if _keychain_available(keychain_name):
         raise Exception('Error: Keychain already exists with this name')
     keychainRef = OpaqueTypeRef()
     result = Security.SecKeychainCreate(keychain_name, len(str(password)), str(password), 0, None, byref(keychainRef))
-    safe_release(keychainRef)
+    _safe_release(keychainRef)
     if result != 0:
         raise Exception('Error: Could not create keychain', result)
     if auto_search:
-        add_keychain_search(keychain_name)
+        _add_keychain_search(keychain_name)
 
-def delete_keychain(keychain_name):
+def _delete_keychain(keychain_name):
     # For the time being here, dummy mode to keep from deleting login and System keychain
-    full_name = resolve_keychain_name(keychain_name)
-    if (full_name == resolve_keychain_name('login.keychain')):
+    full_name = _resolve_keychain_name(keychain_name)
+    if (full_name == _resolve_keychain_name('login.keychain')):
         return
     if (full_name == '/Library/Keychains/System.keychain'):
         return
@@ -380,11 +393,11 @@ def delete_keychain(keychain_name):
     # Always succeeds, safe to ignore result
     result = Security.SecKeychainOpen(keychain_name, byref(keychainRef))
     result = Security.SecKeychainDelete(keychainRef)
-    safe_release(keychainRef)
+    _safe_release(keychainRef)
     if result != 0:
         raise Exception('Error: Could not delete keychain', result)
 
-def keychain_import_cert(keychain_name, cert_path):
+def _keychain_import_cert(keychain_name, cert_path):
     # WARNING - ROUGH CODE, NO ERROR HANDLING YET
     # No trust model here, good for client certs - not for CAs
     # Yay, it works! - Still need to add error checking and result checking
@@ -406,15 +419,15 @@ def keychain_import_cert(keychain_name, cert_path):
     outArray = OpaqueTypeRef()
     result = Security.SecKeychainItemImport(inData, fileStr, None, None, 0, byref(keyParams), keychainRef, byref(outArray))
     # Cleanup
-    safe_release(outArray)
-    safe_release(fileStr)
-    safe_release(dummyStr)
-    safe_release(keychainRef)
-    safe_release(inData)
+    _safe_release(outArray)
+    _safe_release(fileStr)
+    _safe_release(dummyStr)
+    _safe_release(keychainRef)
+    _safe_release(inData)
     if result != 0:
         raise Exception('Error: Error importing certificate into keychain', result)
 
-def keychain_add_trusted_cert(keychain_name, cert_path):
+def _keychain_add_trusted_cert(keychain_name, cert_path):
     # WARNING - ROUGH CODE, NO ERROR HANDLING YET
     # Yay, it works! - Still need to add error checking and result checking
     # When used as a user in graphical mode - will cause a GUI prompt
@@ -443,5 +456,5 @@ def keychain_add_trusted_cert(keychain_name, cert_path):
     # We're cooking with gas now
     result = Security.SecCertificateAddToKeychain(certRef, keychainRef)
     result = Security.SecTrustSettingsSetTrustSettings(certRef, domain, trustSettings)
-    safe_release(certRef)
-    safe_release(keychainRef)
+    _safe_release(certRef)
+    _safe_release(keychainRef)

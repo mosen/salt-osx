@@ -7,6 +7,7 @@ The motivation for this repository is to provide SaltStack modules that call int
 This gives you control over a large number of aspects of OS X configuration, beyond what a simple command runner would do.
 
 Because it's a playground at the moment, i wouldnt use it in any official capacity.
+First project just for messing around is to get parity with Apple Remote Desktop functions.
 
 ## bluetooth ##
 
@@ -54,12 +55,22 @@ Get the running process ID of a job:
 
 ## login ##
 
-The login module is designed to manage loginwindow functionality such as:
-- LoginHook/LogoutHook
-- Login items
-- Loginwindow preferences
+The login module is designed to manage items related to the login process, and the customisation of the 
+loginwindow.
 
-No functional executions yet.
+Get a list of login items (system wide):
+
+    login.items system
+    
+Get a list of login items (current user):
+
+    login.items user
+    
+Get a list of user names hidden at the loginwindow:
+
+    login.items hidden_users
+    
+
 
 ## plist ##
 

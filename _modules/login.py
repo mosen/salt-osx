@@ -4,21 +4,27 @@ Login Module
 
 Handle login preferences and items for Mac OS X.
 
+TODO:
+- Should list mechanisms attached to the loginwindow via the auth db, as a part of the `system.login.console`
+authorization right.
+
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc
+:depends:       objc, plist
 :platform:      darwin
 '''
 
+from salt.utils.decorators import depends
 import logging
-import objc
 
 HAS_LIBS = False
 try:
-    from ApplicationServices import LSSharedFileListCreate, \
+    from LaunchServices import LSSharedFileListCreate, \
         kLSSharedFileListSessionLoginItems, \
         kLSSharedFileListGlobalLoginItems, \
-        LSSharedFileListRef
+        LSSharedFileListRef, \
+        LSSharedFileListCopySnapshot, \
+        LSSharedFileListItemCopyDisplayName
 
     HAS_LIBS = True
 except ImportError:
@@ -39,12 +45,17 @@ def __virtual__():
 
     return __virtualname__
 
+
+log = logging.getLogger(__name__)  # Start logging
+
+
 def items(context):
     '''
     Get a list of 'Login Items'
 
     context
-        The shared file list context: 'user' (meaning the current session) or 'system'
+        The shared file list context: 'user' (meaning the current session) or 'system'.
+        The default login item list will be the 'system' list.
 
     CLI Example:
 
@@ -57,12 +68,13 @@ def items(context):
     else:
         defined_context = kLSSharedFileListGlobalLoginItems
 
-    loginItems = LSSharedFileListCreate(objc.NULL, defined_context, objc.NULL)
+    lst = LSSharedFileListCreate(None, defined_context, None)
+    snapshot, seed = LSSharedFileListCopySnapshot(lst, None)  # snapshot is CFArray
 
-    for item in loginItems:
-        pass
+    return [LSSharedFileListItemCopyDisplayName(item) for item in snapshot]
 
 
+@depends('plist')
 def hidden_users():
     '''
     Get a list of users hidden from the login window
@@ -73,4 +85,6 @@ def hidden_users():
 
         salt '*' login.hidden_users
     '''
+    users = __salt__['plist.read_key']('/Library/Preferences/com.apple.loginwindow.plist', 'HiddenUsersList')
+    return [str(user) for user in users]
 

@@ -36,6 +36,9 @@ __virtualname__ = 'launchd'
 
 
 def __virtual__():
+    '''
+    Only load if the platform is correct and we can use PyObjC libs
+    '''
     if __grains__.get('kernel') != 'Darwin':
         return False
     else:

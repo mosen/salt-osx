@@ -22,6 +22,8 @@ are always a bit clunky, so need to put some thought into this.
 
 import logging
 
+log = logging.getLogger(__name__)  # Start logging
+
 HAS_LIBS = False
 try:
     from Foundation import NSData, \
@@ -33,7 +35,7 @@ try:
 
     HAS_LIBS = True
 except ImportError:
-    pass
+    log.debug('Error importing dependencies for plist execution module.')
 
 __virtualname__ = 'plist'
 
@@ -63,7 +65,7 @@ class NSPropertyListWriteException(FoundationPlistException):
     pass
 
 
-log = logging.getLogger(__name__)  # Start logging
+
 
 
 def _readPlist(filepath):
@@ -80,6 +82,7 @@ def _readPlist(filepath):
         errmsg = "%s in file %s" % (error, filepath)
 
         import traceback
+
         log.debug(errmsg)
         log.debug(traceback.format_exc())
         raise NSPropertyListSerializationException(errmsg)
@@ -97,6 +100,7 @@ def _readPlistFromString(data):
         error = error.encode('ascii', 'ignore')
 
         import traceback
+
         log.debug('Error parsing plist from string')
         log.debug(error)
         raise NSPropertyListSerializationException(error)
@@ -123,6 +127,7 @@ def _writePlist(dataObject, filepath):
             errmsg = "Failed to write plist data to %s" % filepath
 
             import traceback
+
             log.debug(errmsg)
             log.debug(traceback.format_exc())
             raise NSPropertyListWriteException(errmsg)
@@ -146,13 +151,9 @@ def _valueToNSObject(value, nstype):
     '''Convert a string with a type specifier to a native Objective-C NSObject (serializable).'''
     return {
         'string': lambda v: NSString.stringWithUTF8String_(v),
-#        'string[]': lambda v: 'Not Implemented',  # TODO: object literal string to NSArray of NSString
-#        'string{}': lambda v: 'Not Implemented',  # TODO: object literal string to NSDictionary of key => string
-#        'data': lambda v: NSData.dataWithBytes_length_(v, len(v)),  # TODO: hex to bin
         'int': lambda v: NSNumber.numberWithInt_(v),
         'float': lambda v: NSNumber.numberWithFloat_(v),
         'bool': lambda v: True if v == 'true' else False
-#        'date': lambda v: 'Not Implemented',
     }[nstype](value)
 
 
@@ -192,6 +193,7 @@ def _setObjectForKeyList(dict, keys, value):
         # if dict.isKindOfClass_(NSArray.class_()):
         # return
         dict.setObject_forKey_(value, key)
+
 
 def _removeObjectForKeyList(dict, keys):
     '''

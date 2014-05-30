@@ -11,21 +11,48 @@ import logging
 
 log = logging.getLogger(__name__)
 
+HAS_LIBS = False
+try:
+    from Cocoa import NSWorkspace, \
+        NSScreen, \
+        NSWorkspaceDesktopImageScalingKey, \
+        NSWorkspaceDesktopImageAllowClippingKey, \
+        NSWorkspaceDesktopImageFillColorKey
+
+    from ctypes import CDLL, Structure
+
+    HAS_LIBS = True
+except ImportError:
+    log.debug('Execution module not suitable because one or more imports failed.')
+
 __virtualname__ = 'desktop'
 
 
 def __virtual__():
+    '''
+    Only load if the platform is correct and we can use PyObjC libs
+    '''
     if __grains__.get('kernel') != 'Darwin':
         return False
-    else:
-        return __virtualname__
+
+    if not HAS_LIBS:
+        return False
+
+    return __virtualname__
 
 
-from Cocoa import NSWorkspace, \
-    NSScreen, \
-    NSWorkspaceDesktopImageScalingKey, \
-    NSWorkspaceDesktopImageAllowClippingKey, \
-    NSWorkspaceDesktopImageFillColorKey
+# class kPSNOfSystemProcess(Structure):
+# pass
+
+
+
+# def _sendAppleEventToSystemProcess(event_id):
+#     '''
+#     Send an Apple Event to a system process (loginwindow)
+#     '''
+#     targetDesc = AEAddressDesc()
+#     kPSNOfSystemProcess
+
 
 
 def processes():
@@ -47,33 +74,18 @@ def processes():
     return nameList
 
 
-def restart():
-    pass
-
-
-def shutdown():
-    pass
-
-
-def logout():
+def frontmost():
     '''
-    https://developer.apple.com/library/mac/qa/qa1134/_index.html
-    https://developer.apple.com/library/mac/qa/qa1134/_index.html
-    :return:
+    Get the name of the frontmost application
     '''
+    workSpace = NSWorkspace.sharedWorkspace()
+    app = workSpace.frontmostApplication()
+
+    return app.localizedName()
 
 
-def sleep():
-    pass
-
-
-def open():
-    '''
-    Open application or file with NSWorkspace
-    :return:
-    '''
-    pass
-
+# restart/shutdown/logout/sleep
+# https://developer.apple.com/library/mac/qa/qa1134/_index.html
 
 def _screenImageOptions(screen):
     '''
@@ -113,16 +125,3 @@ def wallpaper():
     screens = NSScreen.screens()
     screen_list = [_screenImageOptions(screen) for screen in screens]
     return screen_list
-
-
-def labels():
-    '''
-    Finder labels - NSWorkspace
-    :return:
-    '''
-
-    # Launch Application
-    # Open File
-    # Eject device
-
-    # Notify https://developer.apple.com/library/mac/documentation/NetworkingInternet/Conceptual/RemoteNotificationsPG/Introduction.html#//apple_ref/doc/uid/TP40008194-CH1-SW1

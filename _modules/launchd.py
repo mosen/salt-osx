@@ -7,6 +7,7 @@ List or read launchd job details
 :platform:      darwin
 """
 
+from salt.utils.decorators import depends
 import logging
 
 log = logging.getLogger(__name__)
@@ -23,6 +24,16 @@ try:
 except ImportError:
     has_imports = False
 
+# Does not include per-user Launch Agents
+LAUNCHD_DIRS = [
+    '/Library/LaunchAgents',
+    '/Library/LaunchDaemons',
+    '/System/Library/LaunchAgents',
+    '/System/Library/LaunchDaemons'
+]
+
+LAUNCHD_OVERRIDES = '/var/db/launchd.db/com.apple.launchd/overrides.plist'
+LAUNCHD_OVERRIDES_PERUSER = '/var/db/launchd/com.apple.launchd.peruser.%d/overrides.plist'
 
 __virtualname__ = 'launchd'
 
@@ -55,6 +66,7 @@ def items(domain=u'system'):
         job_dicts = SMCopyAllJobDictionaries(job_domain)
     except Exception:
         import traceback
+
         log.debug("Error fetching job dictionaries for user domain")
         log.debug(traceback.format_exc())
         return False
@@ -89,6 +101,7 @@ def info(label, domain=u'system'):
         job_dict = SMJobCopyDictionary(job_domain, label)
     except Exception:
         import traceback
+
         log.debug("Error fetching job definition for label: %s", label)
         log.debug(traceback.format_exc())
         return False
@@ -113,6 +126,7 @@ def pidof(label, domain=u'system'):
         job_dict = SMJobCopyDictionary(job_domain, label)
     except Exception:
         import traceback
+
         log.debug("Error fetching job definition for label: %s", label)
         log.debug(traceback.format_exc())
         return False
@@ -120,6 +134,7 @@ def pidof(label, domain=u'system'):
     return job_dict.objectForKey_(u'PID')
 
 
+@depends('plist')
 def load(name, persist=False):
     '''
     Load a launchd job by filename - TODO needs to request auth rights.
@@ -137,7 +152,17 @@ def load(name, persist=False):
 
         salt '*' launchd.load <path> [persist]
     '''
+    job_dict = __salt__['plist.read'](name)
+    error, status_ok = SMJobSubmit(kSMDomainSystemLaunchd, job_dict, None, error)
 
+    if not status_ok:
+        import traceback
+
+        log.debug("Error submitting launchd job: %s, error: %s", name, error)
+        log.debug(traceback.format_exc())
+        return False
+    else:
+        return True
 
 
 def unload(label, persist=False):
@@ -157,4 +182,39 @@ def unload(label, persist=False):
 
         salt '*' launchd.unload <path> [persist]
     '''
+    error, status_ok = SMJobRemove(kSMDomainSystemLaunchd, label, None, False)
+
+    if not status_ok:
+        import traceback
+
+        log.debug("Error removing launchd job: %s, error: %s", label, error)
+        log.debug(traceback.format_exc())
+        return False
+    else:
+        return True
+
+
+# Iterate through every plist in standard directories
+# Find original plist value for Disabled key
+# Find overridden value for key
+def enabled(label, domain='system'):
+    '''
+    Get the status of the 'disabled' key for the given job (via original job plus overrides).
+    If the job is enabled returns True, otherwise False. CURRENTLY ONLY WORKS AT SYSTEM LEVEL
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' launchd.enabled <label> [domain='system']
+    '''
+    overrides = __salt__['plist.read'](LAUNCHD_OVERRIDES)
+
+    # If override for job exists, there's no need to check the original job key for Disabled.
+    if label in overrides:
+        return overrides[label]['Disabled'] == False
+    else:
+        return 'Check original plist'
+
+
 

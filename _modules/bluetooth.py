@@ -55,7 +55,7 @@ def __virtual__():
         return False
 
     # System does not support bluetooth
-    if IOBluetoothPreferencesAvailable() == 0:
+    if not IOBluetoothPreferencesAvailable():
         return False
 
     return __virtualname__
@@ -89,7 +89,6 @@ def _btDiscoverState():
     Is this device discoverable?
 
     Returns 0 or 1
-    :return:
     '''
     return IOBluetoothPreferenceGetDiscoverableState()
 
@@ -101,6 +100,11 @@ def _btSetDiscoverState(discoverState):
     0 or 1
     '''
     IOBluetoothPreferenceSetDiscoverableState(discoverState)
+    time.sleep(2)
+    if (_btDiscoverState() != discoverState):
+        return False
+    else:
+        return True
 
 
 def on():
@@ -134,11 +138,13 @@ def available():
     Check if bluetooth preferences are available.
     This may indicate the presence of Bluetooth support.
 
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' bluetooth.available
     '''
-    if IOBluetoothPreferencesAvailable() == 1:
-        return True
-    else:
-        return False
+    return True if IOBluetoothPreferencesAvailable() else False
 
 
 def status():
@@ -151,10 +157,7 @@ def status():
 
         salt '*' bluetooth.off
     '''
-    if _btPowerState() == 1:
-        return 'on'
-    else:
-        return 'off'
+    return 'on' if _btPowerState() else 'off'
 
 
 def discover():
@@ -167,7 +170,7 @@ def discover():
 
         salt '*' bluetooth.discover
     '''
-    _btSetDiscoverState(1)
+    return _btSetDiscoverState(1)
 
 
 def nodiscover():
@@ -180,7 +183,7 @@ def nodiscover():
 
         salt '*' bluetooth.nodiscover
     '''
-    _btSetDiscoverState(0)
+    return _btSetDiscoverState(0)
 
 
 def discoverable():
@@ -193,7 +196,7 @@ def discoverable():
 
         salt '*' bluetooth.discoverable
     '''
-    if _btDiscoverState() == 1:
+    if _btDiscoverState():
         return True
     else:
         return False

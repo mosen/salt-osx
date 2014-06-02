@@ -294,3 +294,17 @@ def delete_key(path, key):
 
     _removeObjectForKeyList(dataObject, keys)
     _writePlist(dataObject, path)
+
+def read(path):
+    '''
+    Read the entire contents of the property list at the specified path
+
+    path
+        An absolute path to a property list (.plist) file, including the extension
+
+    .. code-block:: bash
+
+        salt '*' plist.read <path>
+    '''
+    dataObject = _readPlist(path)
+    return dataObject

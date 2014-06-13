@@ -1,9 +1,9 @@
 """
-Interact with the current users login session
+Interact with the current user's login session
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc
+:depends:       objc,Foundation,Cocoa
 :platform:      darwin
 """
 
@@ -19,7 +19,8 @@ try:
         NSWorkspaceDesktopImageAllowClippingKey, \
         NSWorkspaceDesktopImageFillColorKey
 
-    from ctypes import CDLL, Structure
+    from Foundation import NSURL, \
+        NSDictionary
 
     HAS_LIBS = True
 except ImportError:
@@ -41,20 +42,6 @@ def __virtual__():
     return __virtualname__
 
 
-# class kPSNOfSystemProcess(Structure):
-# pass
-
-
-
-# def _sendAppleEventToSystemProcess(event_id):
-#     '''
-#     Send an Apple Event to a system process (loginwindow)
-#     '''
-#     targetDesc = AEAddressDesc()
-#     kPSNOfSystemProcess
-
-
-
 def processes():
     '''
     Get a list of running processes in the user session
@@ -64,14 +51,11 @@ def processes():
     '''
     workSpace = NSWorkspace.sharedWorkspace()
     appList = workSpace.runningApplications()
-    nameList = list()
 
-    # Instances of NSRunningApplication
-    for runningApp in appList:
-        nameList.append(runningApp.localizedName())
+    names = [app.localizedName() for app in appList]
 
-    nameList.sort()
-    return nameList
+    names.sort()
+    return names
 
 
 def frontmost():
@@ -84,15 +68,12 @@ def frontmost():
     return app.localizedName()
 
 
-# restart/shutdown/logout/sleep
-# https://developer.apple.com/library/mac/qa/qa1134/_index.html
-
 def _screenImageOptions(screen):
     '''
     Process an instance of NSScreen, returning its options as a hash
     '''
     workspace = NSWorkspace.sharedWorkspace()
-    if (screen == NSScreen.mainScreen()):
+    if screen == NSScreen.mainScreen():
         is_main = True
     else:
         is_main = False
@@ -125,3 +106,25 @@ def wallpaper():
     screens = NSScreen.screens()
     screen_list = [_screenImageOptions(screen) for screen in screens]
     return screen_list
+
+
+# No scaling options yet (or main screen detection)
+def set_wallpaper(screen_index, path):
+    '''
+    Set desktop wallpaper for screen at index
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' desktop.set_wallpaper 0 '/Library/Desktop Pictures/Solid Colors/Solid Aqua Graphite.png'
+    '''
+    workspace = NSWorkspace.sharedWorkspace()
+    screens = NSScreen.screens()
+    screen = screens[screen_index]
+    file_url = NSURL.fileURLWithPath_isDirectory_(path, False)
+    options = {}
+
+    (status, error) = workspace.setDesktopImageURL_forScreen_options_error_(file_url, screen, options, None)
+    return status
+

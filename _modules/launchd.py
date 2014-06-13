@@ -3,7 +3,7 @@ List or read launchd job details
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc
+:depends:       objc,ServiceManagement
 :platform:      darwin
 """
 
@@ -105,8 +105,6 @@ def info(label, domain=u'system'):
         log.debug("Error fetching job definition for label: %s", label)
         log.debug(traceback.format_exc())
         return False
-
-    print(job_dict)
 
     return job_dict
 

@@ -16,7 +16,7 @@ are always a bit clunky, so need to put some thought into this.
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc
+:depends:       objc,Foundation
 :platform:      darwin
 '''
 
@@ -63,9 +63,6 @@ class NSPropertyListSerializationException(FoundationPlistException):
 
 class NSPropertyListWriteException(FoundationPlistException):
     pass
-
-
-
 
 
 def _readPlist(filepath):
@@ -294,6 +291,7 @@ def delete_key(path, key):
 
     _removeObjectForKeyList(dataObject, keys)
     _writePlist(dataObject, path)
+
 
 def read(path):
     '''

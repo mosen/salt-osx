@@ -6,7 +6,7 @@ Credit to github/toy for discoverable state feature.
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc
+:depends:       ctypes
 :platform:      darwin
 """
 
@@ -23,16 +23,12 @@ try:
 
     # Declare private functions in IOBluetooth
     IOBluetoothPreferencesAvailable = IOBluetooth.IOBluetoothPreferencesAvailable
-    IOBluetoothPreferencesAvailable.restype = c_int
-
     IOBluetoothPreferenceGetControllerPowerState = IOBluetooth.IOBluetoothPreferenceGetControllerPowerState
-    IOBluetoothPreferenceGetControllerPowerState.restype = c_int
 
     IOBluetoothPreferenceSetControllerPowerState = IOBluetooth.IOBluetoothPreferenceSetControllerPowerState
     IOBluetoothPreferenceSetControllerPowerState.restype = c_void_p
 
     IOBluetoothPreferenceGetDiscoverableState = IOBluetooth.IOBluetoothPreferenceGetDiscoverableState
-    IOBluetoothPreferenceGetDiscoverableState.restype = c_int
 
     IOBluetoothPreferenceSetDiscoverableState = IOBluetooth.IOBluetoothPreferenceSetDiscoverableState
     IOBluetoothPreferenceSetDiscoverableState.restype = c_void_p
@@ -40,6 +36,7 @@ try:
     HAS_LIBS = True
 except ImportError:
     log.debug('Execution module not suitable because one or more imports failed.')
+
 
 __virtualname__ = 'bluetooth'
 
@@ -61,7 +58,7 @@ def __virtual__():
     return __virtualname__
 
 
-def _btPowerState():
+def _bt_power_state():
     '''
     Get the Bluetooth power status
 
@@ -70,21 +67,22 @@ def _btPowerState():
     return IOBluetoothPreferenceGetControllerPowerState()
 
 
-def _btSetPowerState(powerState):
+def _bt_set_power_state(state):
     '''
     Set the Bluetooth power status
-    :param powerState: 0|1
+    :param state: 0|1
     '''
-    IOBluetoothPreferenceSetControllerPowerState(powerState)
+    IOBluetoothPreferenceSetControllerPowerState(state)
     time.sleep(
-        2)  # There is some delay between changing the power and the getter returning the right information. toy@github estimates 10 seconds.
-    if (_btPowerState() != powerState):  # Cannot set power state
+        2)  # There is some delay between changing the power and the getter returning the right information.
+            # toy@github estimates 10 seconds.
+    if _bt_power_state() != state:  # Cannot set power state
         return False
     else:
         return True
 
 
-def _btDiscoverState():
+def _bt_discover_state():
     '''
     Is this device discoverable?
 
@@ -93,15 +91,15 @@ def _btDiscoverState():
     return IOBluetoothPreferenceGetDiscoverableState()
 
 
-def _btSetDiscoverState(discoverState):
+def _bt_set_discover_state(state):
     '''
     Set Bluetooth discoverability
 
     0 or 1
     '''
-    IOBluetoothPreferenceSetDiscoverableState(discoverState)
+    IOBluetoothPreferenceSetDiscoverableState(state)
     time.sleep(2)
-    if (_btDiscoverState() != discoverState):
+    if _bt_discover_state() != state:
         return False
     else:
         return True
@@ -117,7 +115,7 @@ def on():
 
         salt '*' bluetooth.on
     '''
-    return _btSetPowerState(1)
+    return _bt_set_power_state(1)
 
 
 def off():
@@ -130,7 +128,7 @@ def off():
 
         salt '*' bluetooth.off
     '''
-    return _btSetPowerState(0)
+    return _bt_set_power_state(0)
 
 
 def available():
@@ -157,7 +155,7 @@ def status():
 
         salt '*' bluetooth.off
     '''
-    return 'on' if _btPowerState() else 'off'
+    return 'on' if _bt_power_state() else 'off'
 
 
 def discover():
@@ -170,7 +168,7 @@ def discover():
 
         salt '*' bluetooth.discover
     '''
-    return _btSetDiscoverState(1)
+    return _bt_set_discover_state(1)
 
 
 def nodiscover():
@@ -183,7 +181,7 @@ def nodiscover():
 
         salt '*' bluetooth.nodiscover
     '''
-    return _btSetDiscoverState(0)
+    return _bt_set_discover_state(0)
 
 
 def discoverable():
@@ -196,7 +194,7 @@ def discoverable():
 
         salt '*' bluetooth.discoverable
     '''
-    if _btDiscoverState():
+    if _bt_discover_state():
         return True
     else:
         return False

@@ -10,11 +10,10 @@ authorization right.
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc, plist
+:depends:       objc,LaunchServices
 :platform:      darwin
 '''
 
-from salt.utils.decorators import depends
 import logging
 
 HAS_LIBS = False
@@ -49,6 +48,7 @@ def __virtual__():
 log = logging.getLogger(__name__)  # Start logging
 
 
+# In the user context, LSSharedFileListCreate() gets the root list because salt runs under sudo
 def items(context):
     '''
     Get a list of 'Login Items'
@@ -74,7 +74,6 @@ def items(context):
     return [LSSharedFileListItemCopyDisplayName(item) for item in snapshot]
 
 
-@depends('plist')
 def hidden_users():
     '''
     Get a list of users hidden from the login window
@@ -89,8 +88,20 @@ def hidden_users():
     return [str(user) for user in users]
 
 
-@depends('plist')
-def picture(path):
+def picture():
+    '''
+    Get the path of the picture shown in the background of loginwindow (if any)
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' login.picture
+    '''
+    __salt__['plist.read_key']('/Library/Preferences/com.apple.loginwindow.plist', 'DesktopPicture')
+
+
+def set_picture(path):
     '''
     Set the background of the loginwindow to the given path
 
@@ -98,14 +109,26 @@ def picture(path):
 
     .. code-block:: bash
 
-        salt '*' login.picture /path/to/desktop.jpg
+        salt '*' login.set_picture /path/to/desktop.jpg
     '''
     __salt__['plist.write_key']('/Library/Preferences/com.apple.loginwindow.plist', 'DesktopPicture', 'string', path)
     # TODO: kill loginwindow if already at the loginwindow?
 
 
-@depends('plist')
-def text(value):
+def text():
+    '''
+    Get the text to be displayed at the bottom of the loginwindow (if any)
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' login.text
+    '''
+    __salt__['plist.read_key']('/Library/Preferences/com.apple.loginwindow.plist', 'LoginwindowText')
+
+
+def set_text(value):
     '''
     Set some text to be displayed at the bottom of the Login window
 
@@ -117,3 +140,117 @@ def text(value):
     '''
     __salt__['plist.write_key']('/Library/Preferences/com.apple.loginwindow.plist', 'LoginwindowText', 'string', value)
     # TODO: kill loginwindow if already at the loginwindow?
+
+
+def auto_login():
+    '''
+    Get the enabled state of auto login, and the currently assigned user (if any)
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' login.auto_login
+    '''
+    __salt__['plist.read_key']('/Library/Preferences/com.apple.loginwindow.plist', 'autoLoginUser')
+
+
+def set_auto_login(enabled, username):
+    '''
+    Set the auto login state
+
+    enabled
+        Is auto login enabled? True/False
+
+    username
+        The user name to use for auto login
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' login.set_auto_login <enabled> <username>
+    '''
+    if enabled:
+        __salt__['plist.write_key']('/Library/Preferences/com.apple.loginwindow.plist', 'autoLoginUser', 'string', username)
+        __salt__['plist.write_key']('/Library/Preferences/.GlobalPreferences', 'com.apple.userspref.DisableAutoLogin', 'bool', True)
+    else:
+        __salt__['plist.delete_key']('/Library/Preferences/com.apple.loginwindow.plist', 'autoLoginUser')
+
+
+def display_mode():
+    '''
+    Display login window as:
+        - List of users = 'list'
+        - Name and password = 'inputs'
+
+    One of 'list' or 'inputs' is returned
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' login.display_mode
+    '''
+    is_inputs_mode = __salt__['plist.read_key']('/Library/Preferences/com.apple.loginwindow.plist', 'SHOWFULLNAME')
+
+    if is_inputs_mode:
+        return 'inputs'
+    else:
+        return 'list'
+
+def set_display_mode(mode):
+    '''
+    (Set) Display login window as:
+        - List of users = 'list'
+        - Name and password = 'inputs'
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' login.set_display_mode <inputs|list>
+    '''
+    if mode not in ['inputs', 'list']:
+        # no valid mode given
+        return False
+    else:
+        is_inputs_mode = True if mode == 'inputs' else False
+        __salt__['plist.write_key']('/Library/Preferences/com.apple.loginwindow.plist', 'SHOWFULLNAME', 'bool', is_inputs_mode)
+        return True
+
+def display_power_buttons():
+    '''
+    Show the Sleep, Restart, and Shut Down buttons
+
+    Returns true if this preference is enabled
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' login.display_power_buttons
+    '''
+    is_buttons_hidden = __salt__['plist.read_key']('/Library/Preferences/com.apple.loginwindow.plist', 'PowerOffDisabled')
+    return not is_buttons_hidden
+
+
+def set_display_power_buttons(enabled):
+    '''
+    (Set) Show the Sleep, Restart, and Shut Down buttons
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' login.set_display_power_buttons <true|false>
+    '''
+    is_buttons_hidden = True if enabled == 'false' else False
+    __salt__['plist.write_key']('/Library/Preferences/com.apple.loginwindow.plist', 'PowerOffDisabled', 'bool', is_buttons_hidden)
+
+def display_input_menu():
+    pass # showInputMenu (BOOL)
+
+def display_password_hints():
+    pass # RetriesUntilHint (INT) default 3, off = 0
+

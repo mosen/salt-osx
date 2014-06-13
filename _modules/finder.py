@@ -3,7 +3,7 @@ Query information about the Finder configuration
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc
+:depends:       objc,LaunchServices,Cocoa
 :platform:      darwin
 """
 

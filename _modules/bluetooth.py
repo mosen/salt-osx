@@ -19,19 +19,19 @@ HAS_LIBS = False
 try:
     from ctypes import CDLL, c_int, c_void_p
 
-    IOBluetooth = CDLL('/System/Library/Frameworks/IOBluetooth.framework/Versions/Current/IOBluetooth')
+    _IOBluetooth = CDLL('/System/Library/Frameworks/IOBluetooth.framework/Versions/Current/IOBluetooth')
 
     # Declare private functions in IOBluetooth
-    IOBluetoothPreferencesAvailable = IOBluetooth.IOBluetoothPreferencesAvailable
-    IOBluetoothPreferenceGetControllerPowerState = IOBluetooth.IOBluetoothPreferenceGetControllerPowerState
+    _IOBluetoothPreferencesAvailable = _IOBluetooth.IOBluetoothPreferencesAvailable
+    _IOBluetoothPreferenceGetControllerPowerState = _IOBluetooth.IOBluetoothPreferenceGetControllerPowerState
 
-    IOBluetoothPreferenceSetControllerPowerState = IOBluetooth.IOBluetoothPreferenceSetControllerPowerState
-    IOBluetoothPreferenceSetControllerPowerState.restype = c_void_p
+    _IOBluetoothPreferenceSetControllerPowerState = _IOBluetooth.IOBluetoothPreferenceSetControllerPowerState
+    _IOBluetoothPreferenceSetControllerPowerState.restype = c_void_p
 
-    IOBluetoothPreferenceGetDiscoverableState = IOBluetooth.IOBluetoothPreferenceGetDiscoverableState
+    _IOBluetoothPreferenceGetDiscoverableState = _IOBluetooth.IOBluetoothPreferenceGetDiscoverableState
 
-    IOBluetoothPreferenceSetDiscoverableState = IOBluetooth.IOBluetoothPreferenceSetDiscoverableState
-    IOBluetoothPreferenceSetDiscoverableState.restype = c_void_p
+    _IOBluetoothPreferenceSetDiscoverableState = _IOBluetooth.IOBluetoothPreferenceSetDiscoverableState
+    _IOBluetoothPreferenceSetDiscoverableState.restype = c_void_p
 
     HAS_LIBS = True
 except ImportError:
@@ -52,7 +52,7 @@ def __virtual__():
         return False
 
     # System does not support bluetooth
-    if not IOBluetoothPreferencesAvailable():
+    if not _IOBluetoothPreferencesAvailable():
         return False
 
     return __virtualname__
@@ -64,7 +64,7 @@ def _bt_power_state():
 
     0|1
     '''
-    return IOBluetoothPreferenceGetControllerPowerState()
+    return _IOBluetoothPreferenceGetControllerPowerState()
 
 
 def _bt_set_power_state(state):
@@ -72,7 +72,7 @@ def _bt_set_power_state(state):
     Set the Bluetooth power status
     :param state: 0|1
     '''
-    IOBluetoothPreferenceSetControllerPowerState(state)
+    _IOBluetoothPreferenceSetControllerPowerState(state)
     time.sleep(
         2)  # There is some delay between changing the power and the getter returning the right information.
             # toy@github estimates 10 seconds.
@@ -88,7 +88,7 @@ def _bt_discover_state():
 
     Returns 0 or 1
     '''
-    return IOBluetoothPreferenceGetDiscoverableState()
+    return _IOBluetoothPreferenceGetDiscoverableState()
 
 
 def _bt_set_discover_state(state):
@@ -97,7 +97,7 @@ def _bt_set_discover_state(state):
 
     0 or 1
     '''
-    IOBluetoothPreferenceSetDiscoverableState(state)
+    _IOBluetoothPreferenceSetDiscoverableState(state)
     time.sleep(2)
     if _bt_discover_state() != state:
         return False
@@ -142,7 +142,7 @@ def available():
 
         salt '*' bluetooth.available
     '''
-    return True if IOBluetoothPreferencesAvailable() else False
+    return True if _IOBluetoothPreferencesAvailable() else False
 
 
 def status():
@@ -153,7 +153,7 @@ def status():
 
     .. code-block:: bash
 
-        salt '*' bluetooth.off
+        salt '*' bluetooth.status
     '''
     return 'on' if _bt_power_state() else 'off'
 

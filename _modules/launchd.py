@@ -13,12 +13,51 @@ import logging
 log = logging.getLogger(__name__)
 
 try:
+    from ctypes import CDLL, Structure, POINTER, c_char_p, c_size_t, c_void_p, c_uint32, pointer, byref
     from ServiceManagement import SMCopyAllJobDictionaries, \
         SMJobCopyDictionary, \
         kSMDomainSystemLaunchd, \
         kSMDomainUserLaunchd, \
         SMJobRemove, \
         SMJobSubmit
+
+    Security = CDLL('/System/Library/Frameworks/Security.framework/Versions/Current/Security')
+
+    class OpaqueType(Structure):
+        pass
+
+    OpaqueTypeRef = POINTER(OpaqueType)
+
+    AuthorizationRef = OpaqueTypeRef
+
+    kSMRightModifySystemDaemons   = "com.apple.ServiceManagement.daemons.modify"
+    kSMRightBlessPrivilegedHelper = "com.apple.ServiceManagement.blesshelper"
+
+    kAuthorizationEmptyEnvironment = None
+
+    kAuthorizationFlagDefaults = 0
+    kAuthorizationFlagInteractionAllowed = (1 << 0)
+    kAuthorizationFlagExtendRights = (1 << 1)
+    kAuthorizationFlagPartialRights = (1 << 2)
+    kAuthorizationFlagDestroyRights = (1 << 3)
+    kAuthorizationFlagPreAuthorize = (1 << 4)
+
+    class AuthorizationItem(Structure):
+        _fields_ = [('name', c_char_p),
+                    ('valueLength', c_size_t),
+                    ('value', c_void_p),
+                    ('flags', c_uint32),
+                    ]
+
+    class AuthorizationItemSet(Structure):
+        _fields_ = [('count', c_uint32),
+                    ('items', POINTER(AuthorizationItem)),
+                    ]
+
+    AuthorizationCreate = Security.AuthorizationCreate
+    AuthorizationCopyRights = Security.AuthorizationCopyRights
+    AuthorizationFreeItemSet = Security.AuthorizationFreeItemSet
+    AuthorizationFree = Security.AuthorizationFree
 
     has_imports = True
 except ImportError:
@@ -35,6 +74,9 @@ LAUNCHD_DIRS = [
 LAUNCHD_OVERRIDES = '/var/db/launchd.db/com.apple.launchd/overrides.plist'
 LAUNCHD_OVERRIDES_PERUSER = '/var/db/launchd/com.apple.launchd.peruser.%d/overrides.plist'
 
+
+
+
 __virtualname__ = 'launchd'
 
 
@@ -46,6 +88,44 @@ def __virtual__():
         return False
     else:
         return __virtualname__
+
+
+def _get_auth(right):
+    '''
+    Get a single authorization right from auth services framework.
+    '''
+    authref = AuthorizationRef()
+    result = AuthorizationCreate(None, kAuthorizationEmptyEnvironment, kAuthorizationFlagDefaults, byref(authref))
+
+    right_set = (AuthorizationItem*1)()
+    right_set[0].name = right
+    rights = AuthorizationItemSet()
+    rights.count = 1
+    rights.items = pointer(right_set)
+
+    # No interaction allowed
+    flags = kAuthorizationFlagDefaults | kAuthorizationFlagPreAuthorize | kAuthorizationFlagExtendRights
+
+    given_rights = AuthorizationItemSet()
+
+    result = AuthorizationCopyRights(authref, byref(rights), kAuthorizationEmptyEnvironment, flags, byref(given_rights))
+    return (authref, given_rights) if result == 0 else False
+
+
+def _dealloc_auth(authref):
+    '''
+    Deallocate AuthorizationRef
+    '''
+    result = AuthorizationFree(authref, kAuthorizationFlagDefaults | kAuthorizationFlagDestroyRights)
+    return True if result == 0 else False
+
+
+def _dealloc_rights(rights):
+    '''
+    Deallocate authorization rights
+    '''
+    result = AuthorizationFreeItemSet(rights)
+    return True if result == 0 else False
 
 
 def items(domain=u'system'):
@@ -151,7 +231,11 @@ def load(name, persist=False):
         salt '*' launchd.load <path> [persist]
     '''
     job_dict = __salt__['plist.read'](name)
-    error, status_ok = SMJobSubmit(kSMDomainSystemLaunchd, job_dict, None, error)
+    authref, rights = _get_auth(kSMRightModifySystemDaemons)
+    error, status_ok = SMJobSubmit(kSMDomainSystemLaunchd, job_dict, authref)
+
+    _dealloc_rights(rights)
+    _dealloc_auth(authref)
 
     if not status_ok:
         import traceback
@@ -180,7 +264,11 @@ def unload(label, persist=False):
 
         salt '*' launchd.unload <path> [persist]
     '''
+    authref, rights = _get_auth(kSMRightModifySystemDaemons)
     error, status_ok = SMJobRemove(kSMDomainSystemLaunchd, label, None, False)
+
+    _dealloc_rights(rights)
+    _dealloc_auth(authref)
 
     if not status_ok:
         import traceback

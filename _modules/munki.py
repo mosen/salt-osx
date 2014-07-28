@@ -50,5 +50,5 @@ def set_cid(client_identifier):
 
         salt '*' munki.set_cid 'developer'
     '''
-    __salt__['plist.write_key']('/Library/Preferences/com.apple.loginwindow.plist', 'LoginwindowText', 'string', client_identifier)
+    __salt__['plist.write_key']('/Library/Preferences/ManagedInstalls.plist', 'ClientIdentifier', 'string', client_identifier)
 

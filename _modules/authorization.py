@@ -16,7 +16,8 @@ log = logging.getLogger(__name__)
 
 HAS_LIBS = False
 try:
-    # A large section has been lifted from ubuntu one code, licensed GPL v3 by Canonical
+    # A large section of the Authorization services code has been lifted from
+    # the now deprecated Ubuntu One installer by Canonical, Licensed GPLv3
     from ctypes import *
 
     # Security Junk

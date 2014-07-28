@@ -23,8 +23,9 @@ LAUNCHD_DIRS = [
 LAUNCHD_OVERRIDES = '/var/db/launchd.db/com.apple.launchd/overrides.plist'
 LAUNCHD_OVERRIDES_PERUSER = '/var/db/launchd/com.apple.launchd.peruser.%d/overrides.plist'
 
-
 try:
+    log.debug('Importing ctypes')
+
     from ctypes import *
     import objc
 
@@ -82,13 +83,8 @@ try:
     class DaemonInstallException(Exception):
         """Error securely installing daemon."""
 
-
-
-
-
     class DaemonRemoveException(Exception):
         """Error removing existing daemon."""
-
 
     class DaemonVersionMismatchException(Exception):
         """Incompatible version of the daemon found."""
@@ -105,8 +101,8 @@ try:
 
     has_imports = True
 except ImportError:
+    log.debug('Error importing dependencies for launchd execution module.')
     has_imports = False
-
 
 __virtualname__ = 'launchd'
 
@@ -203,7 +199,7 @@ def _bless_helper(authRef, job_label):
 
 
 # def items(domain=u'system'):
-#     '''
+# '''
 #     Get a sorted list of launchd job labels.
 #
 #     domain
@@ -346,7 +342,6 @@ def unload(label, persist=False):
         __salt__['authorization.free'](authRef)
 
 
-
 # Iterate through every plist in standard directories
 # Find original plist value for Disabled key
 # Find overridden value for key
@@ -365,7 +360,7 @@ def enabled(label, domain='system'):
 
     # If override for job exists, there's no need to check the original job key for Disabled.
     if label in overrides:
-        return overrides[label]['Disabled'] == False
+        return overrides[label]['Disabled'] is False
     else:
         return 'Check original plist'
 

@@ -1,21 +1,52 @@
-salt-osx
-========
+## salt-osx ##
 
-(Experimental) Salt modules for OSX w PyObjC.
+Salt Modules/Grains/States for Mac OS X w/PyObjC. *Experimental*
 
-The motivation for this repository is to provide SaltStack modules that call into native Foundation/Cocoa api via PyObjC.
-This gives you control over a large number of aspects of OS X configuration. Many other configuration management systems
-fail to reach beyond the command line, and configuration profiles only work if Apple are nice enough to extend their
-plugins to let us do something.
+The motivation for this repository is to provide SaltStack modules that call into native Foundation/Cocoa API via PyObjC.
+This would theoretically give you more control over configuration than scripting alone.
 
-By having control over the system in both a native and command line capacity, SaltStack manages to cover more bases
-than running a combination of other configuration management.
+There are also some modules that use command line tools.
 
-This is beta software, I wouldn't use it in any official capacity.
+## Installation ##
 
-## bluetooth ##
+**VERY IMPORTANT:** You must disable multiprocessing on the Mac OS X minions for almost anything to work. This is
+because salt-minion threading does not work **at all** with CoreFoundation API. If you do not do this, the minion will crash
+without warning when trying to execute one of these modules.
+
+You must edit your minion configuration file, usually `/etc/salt/minion` to include the following line:
+
+    multiprocessing: False
+    
+This repository can then be added to your `file_roots` or whichever fileserver backend you happen to be using for your
+master or masterless setup.
+
+## Grains ##
+
+- **filevault_enabled** FileVault state
+- **java_vendor** JRE vendor (Apple or Oracle)
+- **java_version** JRE version string
+
+## States ##
+
+### bluetooth ###
+
+Control the state of bluetooth power and discoverability on the mac platform
+
+### munki ###
+
+A simple wrapper to control munki tools client configuration
+
+### plist ###
+
+PropertyList management via YAML fragments
+
+## Execution Modules ##
+
+### bluetooth ###
 
 The **Bluetooth** module allows you to control the power and discoverability status of your macs bluetooth hardware.
+
+*NOTE:* System preferences does not indicate whether the current device is discoverable.
 
 The bluetooth module allows you to turn bluetooth on or off via
 
@@ -39,7 +70,7 @@ You can query the power status, and discoverability via these two execution modu
     bluetooth.discoverable
     
     
-## desktop ##
+### desktop ###
 
 The desktop module extends the salt core desktop module, providing you with settings and interactions for the current
 users session, similar to those available via Apple Remote Desktop. Be aware that some commands will run immediately
@@ -62,6 +93,9 @@ You can set the current wallpaper using the following execution module:
 The first parameter is the index of the screen, starting from 0. At the moment there is no way to designate the "main"
 screen aka the screen that will contain the loginwindow. The second parameter of course is the full path to a local file
 to use for the wallpaper.
+
+At the moment custom colors are not supported, but if a wallpaper image is set, it always takes precedence over the solid
+hex color.
     
 ## keychain ##
 

@@ -2,9 +2,11 @@
 Property List Module
 ====================
 
-The Property List module reads and writes PropertyList files which are used
-heavily throughout OSX. Several parts of this code have been taken/modified from Greg Neagle's
-FoundationPlist class which is a part of the munki project.
+The Property List module reads and writes .plist files which are used
+heavily throughout OSX.
+
+Several parts of this code have been taken/modified from Greg Neagle's
+FoundationPlist class which is a part of the munki tools project.
 
 Remember that changes may not be effected immediately, and that you should try to avoid modifying the plist
 of any running process.
@@ -26,12 +28,15 @@ log = logging.getLogger(__name__)  # Start logging
 
 HAS_LIBS = False
 try:
+    import os
+
     from Foundation import NSData, \
         NSPropertyListSerialization, \
         NSPropertyListMutableContainers, \
         NSPropertyListXMLFormat_v1_0, \
         NSNumber, \
-        NSString
+        NSString, \
+        NSMutableDictionary
 
     HAS_LIBS = True
 except ImportError:
@@ -69,7 +74,12 @@ def _readPlist(filepath):
     """
     Read a .plist file from filepath.  Return the unpacked root object
     (which is usually a dictionary).
+
+    If the file doesn't exist, this returns None
     """
+    if not os.path.isfile(filepath):
+        return None
+
     plistData = NSData.dataWithContentsOfFile_(filepath)
     dataObject, plistFormat, error = \
         NSPropertyListSerialization.propertyListFromData_mutabilityOption_format_errorDescription_(
@@ -153,6 +163,61 @@ def _valueToNSObject(value, nstype):
         'bool': lambda v: True if v == 'true' else False
     }[nstype](value)
 
+def _objectsForKeyDict(dict, keys, collector):
+    """Get plist values extracted by providing a list of keys and their hierarchy.
+
+    Recursive call traverses the specified keys in the NSDictionary, and retrieves the associated
+    object at each 'leaf node', assigning a hierarchy of keys and the found value to the collector.
+
+        Args:
+            dict (NSDictionary): The current dictionary being operated on
+
+            keys: The current dict describing a key or nested key in the dict parameter.
+
+            collector: A reference to the current dict which can have value(s) set.
+    """
+    # Stop collecting values if the specified key hierarchy doesn't exist.
+    if dict is None:
+        collector = None
+        return
+
+    for key, value in keys.items():
+        if type(value) is dict:
+            collector[key] = {}
+            plist_value = dict.objectForKey_(key)
+            _objectsForKeyDict(plist_value, value, collector[key])
+        else:
+
+            collector[key] = dict.objectForKey_(key)
+
+def _setObjectsForKeyDict(dict, keys, changed={}):
+    """Set plist values using a given dict.
+
+    Recursively finds or creates keys given and sets their values. This can be used to maintain a partial or
+    complete override of any given property list file.
+
+        Args:
+            dict (NSMutableDictionary): The current dictionary being operated on. For a non existent file this will be
+            blank.
+
+            keys: A dict representing a hierarchy with leaf node values.
+    """
+    for key, value in keys.items():
+        existing_value = dict.objectForKey_(key)
+
+        if type(value) is dict:
+            # Value unavailable, so create structure
+            if existing_value is None:
+                child = NSMutableDictionary()
+                dict.setObject_forKey_(child, key)
+
+            changed[key] = {}
+            _setObjectsForKeyDict(child, value, changed[key])
+        else:
+            if existing_value != value:
+                dict.setObject_forKey_(value, key)
+                changed[key] = value
+
 
 def _objectForKeyList(dict, keys):
     '''
@@ -229,6 +294,9 @@ def read_key(path, key=''):
     '''
     dataObject = _readPlist(path)
 
+    if dataObject is None:
+        return None
+
     keys = key.split(':')
     if type(keys) is str:
         keys = list(keys)
@@ -239,7 +307,8 @@ def read_key(path, key=''):
 
 def write_key(path, key, nstype, value):
     '''
-    Write the value of a key contained within the Property List file specified
+    Write the value of a key contained within the Property List file specified.
+    If the property list file does not exist, the default behaviour is to create it with the keys/values given.
 
     path
         An absolute path to a property list (.plist) file, including the extension
@@ -265,6 +334,9 @@ def write_key(path, key, nstype, value):
     if type(keys) is str:
         keys = list(keys)
 
+    if dataObject is None:
+        dataObject = NSMutableDictionary()
+
     _setObjectForKeyList(dataObject, keys, _valueToNSObject(value, nstype))
     _writePlist(dataObject, path)
 
@@ -284,6 +356,9 @@ def delete_key(path, key):
         salt '*' plist.delete <path> [key]
     '''
     dataObject = _readPlist(path)
+
+    if dataObject is None:
+        return None  # None indicating no action was taken.
 
     keys = key.split(':')
     if type(keys) is str:
@@ -306,3 +381,52 @@ def read(path):
     '''
     dataObject = _readPlist(path)
     return dataObject
+
+
+def read_keys(path, keys):
+    """
+    Read values of keys described by a dict.
+    Each dict entry is traversed until it has no child dict.
+
+    path
+        An absolute path to a property list (.plist) file, including the extension
+
+    keys
+        A dict describing a key or nested keys, with any leaf values used to look up the
+        corresponding plist value.
+    """
+    dataObject = _readPlist(path)
+
+    collector = {}
+    _objectsForKeyDict(dataObject, keys, collector)
+
+    return collector
+
+
+def write_keys(path, keys, test=False):
+    """
+    Write key structure and its values to the given property list.
+    If a key does not exist in the target plist, it is created as a dictionary by default.
+
+    path
+        An absolute path to a property list (.plist) file, including the extension
+
+    keys
+        A dict describing a structure and value(s) that should exist inside the target plist
+
+    test
+        If test is true, no changes will be written, but you will receive a dict containing the changes that
+        would have been performed.
+    """
+    dataObject = _readPlist(path)
+
+    if dataObject is None:
+        dataObject = NSMutableDictionary()
+
+    changed = {}
+    _setObjectsForKeyDict(dataObject, keys, changed)
+
+    if test == False:
+        _writePlist(dataObject, path)
+
+    return changed

@@ -3,11 +3,10 @@ List, query, submit and remove launchd jobs
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc, ServiceManagement, ctypes
+:depends:       objc,ctypes
 :platform:      darwin
 """
 
-from salt.utils.decorators import depends
 import logging
 
 log = logging.getLogger(__name__)

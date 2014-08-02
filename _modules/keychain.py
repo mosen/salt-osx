@@ -5,7 +5,7 @@ Straight adaptation from pudquick's keymaster.py
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc
+:depends:       objc,ctypes,CoreFoundation
 :platform:      darwin
 """
 
@@ -127,11 +127,13 @@ CSSM_DATA._fields_ = [
 
 
 def _safe_release(cf_ref):
+    """Release a CFReference safely (if there is one)"""
     if cf_ref:
         CFoundation.CFRelease(cf_ref)
 
 
 def _get_keychain_path(a_keychain):
+    """Copy the path of a keychain into a string buffer"""
     path_length = c_int(MAXPATHLEN)
     path_name = create_string_buffer('\0' * (MAXPATHLEN + 1), MAXPATHLEN + 1)
     result = Security.SecKeychainGetPath(a_keychain, byref(path_length), path_name)
@@ -154,23 +156,24 @@ def _resolve_keychain_name(keychain_name):
     return keychain_path
 
 
-def _list_our_keychains(kDomain=None):
-    if not kDomain:
-        # Default to user domain
-        kDomain = kSecPreferencesDomainUser
+def _list_keychains(kDomain):
+    """List keychain paths for the given domain"""
     keychain_paths = []
     search_list = OpaqueTypeRef()
+    log.info('Looking up keychain search list from Security framework')
     # Look up our list of keychain paths in the user domain, pass the results back in search_list
     result = Security.SecKeychainCopyDomainSearchList(kDomain, byref(search_list))
     # Return code is zero on success
     if (result != 0):
+        log.error('Failed to get keychain search list, no reason given')
         raise Exception('Error: Could not get keychain search list for some reason')
+
     # SecKeychainCopyDomainSearchList is pretty gross. It can return a single SecKeychainRef
     # ... OR it can return a CFArray of them. So you have to check what you're getting.
-    if (CFoundation.CFGetTypeID(search_list) == Security.SecKeychainGetTypeID()):
+    if CFoundation.CFGetTypeID(search_list) == Security.SecKeychainGetTypeID():
         # It's a SecKeychain, just get the path value directly
         keychain_paths.append(_get_keychain_path(search_list))
-    elif (CFoundation.CFGetTypeID(search_list) == CFoundation.CFArrayGetTypeID()):
+    elif CFoundation.CFGetTypeID(search_list) == CFoundation.CFArrayGetTypeID():
         # It's a CFArray of SecKeychains, gotta loop
         count = CFoundation.CFArrayGetCount(search_list)
         for i in range(count):
@@ -182,7 +185,7 @@ def _list_our_keychains(kDomain=None):
 
 def _keychain_present_in_search(keychain_name):
     # In the user domain
-    return _resolve_keychain_name(keychain_name) in _list_our_keychains(kSecPreferencesDomainUser)
+    return _resolve_keychain_name(keychain_name) in _list_keychains(kSecPreferencesDomainUser)
 
 
 def _set_keychain_search(keychain_list):
@@ -224,7 +227,7 @@ def _add_keychain_search(keychain_name):
         # It's already there, just return
         return
     # Otherwise, need to add it to the search path - it'll go at the end
-    new_path_list = _list_our_keychains()
+    new_path_list = _list_keychains()
     # Remove it from the list
     new_path_list.append(keychain_name)
     # Set our search path to the new list
@@ -241,7 +244,7 @@ def _remove_keychain_search(keychain_name):
         # Safety feature - don't want to remove the login keychain accidentally
         return
     # Otherwise, it is in the search path - need to remove it
-    new_path_list = _list_our_keychains()
+    new_path_list = _list_keychains()
     # Remove it from the list
     new_path_list.remove(full_name)
     # Set our search path to the new list
@@ -502,7 +505,7 @@ def keychains(domain):
     else:
         k_domain = kSecPreferencesDomainSystem
 
-    paths = _list_our_keychains(k_domain)
+    paths = _list_keychains(k_domain)
     return paths
 
 

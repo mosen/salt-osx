@@ -4,6 +4,8 @@ OSX Authorization Framework Functionality
 Mostly provided to allow other execution modules to call functions that require
 elevated privileges.
 
+Not required when calling a utility via cmd.run
+
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
 :depends:       objc,Foundation,Cocoa

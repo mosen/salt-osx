@@ -68,10 +68,15 @@ def items(context):
     else:
         defined_context = kLSSharedFileListGlobalLoginItems
 
+    log.info('Getting login items for the %s context', 'user' if context == 'user' else 'system')
     lst = LSSharedFileListCreate(None, defined_context, None)
     snapshot, seed = LSSharedFileListCopySnapshot(lst, None)  # snapshot is CFArray
 
-    return [LSSharedFileListItemCopyDisplayName(item) for item in snapshot]
+    log.info('Login item display names:')
+    login_items = [LSSharedFileListItemCopyDisplayName(item) for item in snapshot]
+    log.info(login_items)
+
+    return login_items
 
 
 def hidden_users():

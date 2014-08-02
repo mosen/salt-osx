@@ -7,7 +7,7 @@ Shortcuts for munki client checks.
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       plist
+:depends:       objc,plist
 :platform:      darwin
 '''
 
@@ -27,7 +27,7 @@ def __virtual__():
 
 log = logging.getLogger(__name__)  # Start logging
 
-def cid():
+def clientid():
     '''
     Get the current munki ClientIdentifier
 
@@ -37,10 +37,10 @@ def cid():
 
         salt '*' munki.cid
     '''
-    return __salt__['plist.readkey']('/Library/Preferences/ManagedInstalls.plist', 'ClientIdentifier')
+    return __salt__['plist.read_key']('/Library/Preferences/ManagedInstalls.plist', 'ClientIdentifier')
 
 
-def set_cid(client_identifier):
+def set_clientid(client_identifier):
     '''
     Set the current munki ClientIdentifier
 

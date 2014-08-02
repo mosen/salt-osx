@@ -3,7 +3,7 @@ Query information about the Finder configuration
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc,LaunchServices,Cocoa
+:depends:       objc,LaunchServices,Cocoa.NSWorkspace
 :platform:      darwin
 """
 
@@ -69,4 +69,4 @@ def labels():
     Get Finder labels (Not including user defined tags, they are identified by NSURLTagNamesKey)
     '''
     workSpace = NSWorkspace.sharedWorkspace()
-    return workSpace.fileLabels()
+    return list(workSpace.fileLabels())

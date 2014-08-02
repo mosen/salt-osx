@@ -1,5 +1,5 @@
 """
-Interact with the current user's login session
+Interact with the current user's login session.
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
@@ -103,8 +103,13 @@ def wallpaper():
 
         salt '*' desktop.wallpaper
     '''
+    log.info('Enumerating settings for each screen')
     screens = NSScreen.screens()
+    log.info('Getting settings for %d screen(s)', len(screens))
     screen_list = [_screenImageOptions(screen) for screen in screens]
+    from pprint import pprint
+    pprint(screen_list)
+
     return screen_list
 
 

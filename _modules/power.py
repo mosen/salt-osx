@@ -3,7 +3,7 @@ Interact with the power management of the osx minion
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
-:depends:       objc
+:depends:       ctypes
 :platform:      darwin
 """
 

@@ -27,7 +27,11 @@ cmdmod = {
 }
 
 def filevault_enabled():
-    '''Is FileVault enabled?'''
+    """Find out whether FileVault is enabled, via fdesetup.
+
+    :return: True or False
+    :rtype: bool
+    """
     fv_status = cmdmod['cmd.run']('fdesetup status')
     grains = {}
 
@@ -37,3 +41,30 @@ def filevault_enabled():
         grains['filevault_enabled'] = False
 
     return grains
+
+
+def java_vendor():
+    """Get the current Java vendor for the JRE.
+
+    :return: 'Oracle' or 'Apple'
+    :rtype: string
+    """
+    bundle_id = cmdmod['cmd.run']('/usr/bin/defaults read "/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Info" CFBundleIdentifier 2>/dev/null')
+
+    if bundle_id == "com.oracle.java.JavaAppletPlugin":
+        return 'Oracle'
+    elif bundle_id == "com.apple.java.JavaAppletPlugin":
+        return 'Apple'
+
+
+def java_version():
+    """Get the current Java version for the JRE.
+
+    :return: The current Java version
+    :rtype: string
+    """
+    bundle_version = cmdmod['cmd.run']('/usr/bin/defaults read "/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Info" CFBundleVersion 2>/dev/null')
+
+    return bundle_version
+
+

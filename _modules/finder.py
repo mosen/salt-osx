@@ -44,9 +44,42 @@ def __virtual__():
     return __virtualname__
 
 
+def select(path, finder_path=""):
+    '''
+    Reveal the finder and select the file system object at the given path.
+    If the second parameter is specified, a new finder window will be opened at that path.
+    Otherwise, an existing finder window will be used.
+
+    CLI Example::
+
+        salt '*' finder.select '/Users/Shared' '/Users'
+    '''
+    workSpace = NSWorkspace.sharedWorkspace()
+    status = workSpace.selectFile_inFileViewerRootedAtPath_(path, finder_path)
+    return status
+
+
+def search(query):
+    '''
+    Reveal the finder and search in Spotlight, with the given query.
+
+    CLI Example::
+
+        salt '*' finder.search 'Documents'
+    '''
+    workSpace = NSWorkspace.sharedWorkspace()
+    status = workSpace.showSearchResultsForQueryString_(query)
+    return status
+
+
 def favorites():
     '''
     Get items listed as Finder favorites, this normally appears on the sidebar.
+    Because the minion runs as root, this function returns sidebar items for root which is not terribly useful.
+
+    CLI Example::
+
+        salt '*' finder.favorites
     '''
     lst = LSSharedFileListCreate(None, kLSSharedFileListFavoriteItems, None)
     snapshot, seed = LSSharedFileListCopySnapshot(lst, None)  # snapshot is CFArray
@@ -57,6 +90,11 @@ def favorites():
 def devices():
     '''
     Get items listed as Finder devices, this normally appears on the sidebar.
+    This would normally return mounted devices for root, but since mounts are usually system wide, this will be ok.
+
+    CLI Example::
+
+        salt '*' finder.devices
     '''
     lst = LSSharedFileListCreate(None, kLSSharedFileListFavoriteVolumes, None)
     snapshot, seed = LSSharedFileListCopySnapshot(lst, None)  # snapshot is CFArray

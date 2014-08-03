@@ -41,6 +41,53 @@ def __virtual__():
 
     return __virtualname__
 
+def open_url(url):
+    '''
+    Open a URL in the current users session.
+    This works with anything that command-k would accept, such as:
+    afp, smb, vnc, http
+
+    CLI Example::
+
+        salt '*' desktop.open_url 'afp://server.local'
+    '''
+    workSpace = NSWorkspace.sharedWorkspace()
+    url = NSURL.URLWithString_(url)
+    if url is None:
+        log.error('Invalid URL given: %s' % url)
+        return False
+
+    status = workSpace.openURL_(url)
+    return status
+
+
+def open_file(path):
+    '''
+    Open a file in the current users session (using the default application).
+    This requires the full path to the file.
+
+    CLI Example::
+
+        salt '*' desktop.open_file '/Users/Shared'
+    '''
+    workSpace = NSWorkspace.sharedWorkspace()
+    status = workSpace.openFile_(path)
+    return status
+
+
+def launch(application):
+    '''
+    Open an Application by name.
+    This does not need to be the full path to the application, and does not need to have an .app extension.
+
+    CLI Example::
+
+        salt '*' desktop.launch 'TextEdit'
+    '''
+    workSpace = NSWorkspace.sharedWorkspace()
+    status = workSpace.launchApplication_(application)
+    return status
+
 
 def processes():
     '''

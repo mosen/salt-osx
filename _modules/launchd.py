@@ -281,6 +281,38 @@ def _bless_helper(authRef, job_label):
 #     return job_dict.objectForKey_(u'PID')
 #
 #
+def submit(job):
+    '''
+    Submit a launchd job using a job dictionary.
+    You should not call this interactively. This exists for other modules to call.
+
+    job
+        The job dictionary to submit (in a format that launchd recognises).
+        See manpages for launchd
+    '''
+    authref = __salt__['authorization.create'](kSMRightModifySystemDaemons)
+
+    # desc_cfstr = None
+    # cf_job_dict = job_dict
+    #
+    # try:
+    #     error = c_void_p()
+    #
+    #     ok = SMJobSubmit(kSMDomainSystemLaunchd,
+    #                      cf_job_dict,  # objc bridges to NSDictionary bridges to CFDictionary
+    #                      authRef,
+    #                      byref(error))
+    #
+    #     if not ok:
+    #         desc_cfstr = CFErrorCopyDescription(error)
+    #         CFShow(desc_cfstr)
+    #         raise DaemonInstallException("SMJobSubmit error (see above)")
+    #
+    # finally:
+    #     if desc_cfstr:
+    #         CFRelease(desc_cfstr)
+
+
 def load(name, persist=False):
     '''
     Load a launchd job by filename
@@ -301,15 +333,16 @@ def load(name, persist=False):
     job_dict = __salt__['plist.read'](name)  # Gets a native NSCFDictionary
 
     try:
-        authRef = __salt__['authorization.create'](kSMRightModifySystemDaemons)
-        _submit_job(authRef, job_dict)
+        authref = __salt__['authorization.create'](kSMRightModifySystemDaemons)
+        _submit_job(authref, job_dict)
 
     except DaemonInstallException, e:
         log.error("Exception trying to install launchd job: %r" % e)
         raise e
 
     finally:
-        __salt__['authorization.free'](authRef)
+        if authref:
+        __salt__['authorization.free'](authref)
 
 
 def unload(label, persist=False):

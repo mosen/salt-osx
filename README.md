@@ -170,7 +170,7 @@ Find out if auto-login is active, and which user it is set to:
 
     login.auto_login
     
-Enable or disable auto-login for the specified username:
+Enable or disable auto-login for the specified username **NOTE: Not currently working, need to encode password hash**:
 
     login.set_auto_login true username  # To enable, or
     login.set_auto_login false          # to disable.
@@ -235,3 +235,8 @@ Restart is a basic wrapper around `shutdown -r`, default is 'now':
 
     power.restart now
     
+## TODO ##
+
+General Roadmap Notes:
+
+- Need to support configuration profile management including generation and remote enrollment.

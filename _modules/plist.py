@@ -219,6 +219,33 @@ def _setObjectsForKeyDict(dict, keys, changed={}):
                 changed[key] = value
 
 
+def _removeObjectsForKeyDict(dict, keys, changed={}):
+    """Remove plist values using a given dict.
+
+    Traverse each entry in the keys dict and remove the corresponding key (if it exists).
+    If it doesn't exist then the function returns early.
+    If the key was removed, the full path to that key is indicated in the changed dict.
+
+        Args:
+            dict (NSMutableDictionary): The current dictionary being operated on. For a non existent file this will be
+            blank.
+
+            keys: A dict representing a hierarchy pointing to keys to be removed
+
+            changed: A dict used to record changes made
+    """
+    for key, value in keys.items():
+        existing_value = dict.objectForKey_(key)
+
+        if not existing_value is None:  # No need to process removal for non existent keys
+            if type(value) is dict:
+                changed[key] = {}
+                _removeObjectsForKeyDict(existing_value, value, changed[key])  # Recurse deeper until not a dict
+            else:
+                dict.removeObjectForKey_(key)
+                changed[key] = value
+
+
 def _objectForKeyList(dict, keys):
     '''
     Get an object inside a nested NSDictionary structure, using a list of nested keys
@@ -425,6 +452,34 @@ def write_keys(path, keys, test=False):
 
     changed = {}
     _setObjectsForKeyDict(dataObject, keys, changed)
+
+    if test == False:
+        _writePlist(dataObject, path)
+
+    return changed
+
+def delete_keys(path, keys, test=False):
+    """
+    Delete keys indicated by key dict structure.
+    The deepest, or leaf node, of each dictionary entry will be removed from the plist.
+
+    path
+        An absolute path to a property list (.plist) file, including the extension
+
+    keys
+        A dict describing keys that should NOT exist inside the target plist
+
+    test
+        If test is true, no changes will be written, but you will receive a dict containing the keys that
+        would have been removed.
+    """
+    dataObject = _readPlist(path)
+    changed = {}
+
+    if dataObject is None:
+        return changed  # No need to remove anything from non existent property list
+
+    _removeObjectsForKeyDict(dataObject, keys, changed)
 
     if test == False:
         _writePlist(dataObject, path)

@@ -1,3 +1,6 @@
+include:
+  - java.config
+
 system:
   bluetooth:
     - managed
@@ -7,9 +10,13 @@ system:
     - identifier: sales
 #    - repo_url: 'http://munki/repo'
 
-# Disable Oracle JRE Updates
-/Library/Preferences/com.oracle.java.Java-Updater.plist:
+
+# Restrict AAM From Updating
+/Library/Preferences/com.adobe.CSXSPreferences.plist:
   plist.managed_keys:
-    - JavaAutoUpdateEnabled: True
+    - UpdatesAllowed: False
 
 
+#salt:
+#  user.present:
+#    - fullname: SaltStack

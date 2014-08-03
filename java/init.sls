@@ -1,1 +1,2 @@
-# TODO: Oracle JRE Management
+# Download and install Oracle JRE?
+

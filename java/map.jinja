@@ -1,9 +1,0 @@
-{% set p = salt['pillar.get']('java', {}) %}
-{% set defaults = {
-    'updates_enabled' : False
-} %}
-{% set java = {
-    'config' : {
-        'updates_enabled' : p.get('updates_enabled', defaults.updates_enabled)
-    }
-} %}

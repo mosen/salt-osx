@@ -7,6 +7,8 @@
 import salt.utils
 import salt.modules.cmdmod
 import logging
+import re
+
 
 log = logging.getLogger(__name__)
 
@@ -52,9 +54,11 @@ def java_vendor():
     bundle_id = cmdmod['cmd.run']('/usr/bin/defaults read "/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Info" CFBundleIdentifier 2>/dev/null')
 
     if bundle_id == "com.oracle.java.JavaAppletPlugin":
-        return 'Oracle'
+        vendor = 'Oracle'
     elif bundle_id == "com.apple.java.JavaAppletPlugin":
-        return 'Apple'
+        vendor = 'Apple'
+
+    return {'mac_java_vendor':vendor} if vendor else None
 
 
 def java_version():
@@ -65,6 +69,50 @@ def java_version():
     """
     bundle_version = cmdmod['cmd.run']('/usr/bin/defaults read "/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Info" CFBundleVersion 2>/dev/null')
 
-    return bundle_version
+    return {'mac_java_version':bundle_version} if bundle_version else None
 
 
+def flash_version():
+    """Get the current version of the Flash internet plug-in"""
+    output = cmdmod['cmd.run']("/usr/bin/defaults read '/Library/Internet\ Plug-Ins/Flash Player.plugin/Contents/Info' CFBundleVersion 2>/dev/null")
+    return {'mac_flash_version':output} if output else None
+
+
+def admin_users():
+    """Local admin group membership.
+
+    :return: List of admin group members
+    :rtype: list
+    """
+    output = cmdmod['cmd.run']('dscl . -read /Groups/admin GroupMembership')
+    log.debug("dscl output for admin users follows: {0}".format(output))
+    parts = output.split(':', 1)
+    members = [member for member in parts[1].split()]
+    return {'mac_admin_users':members}
+
+
+def mac_laptop():
+    """Determine whether this machine is a laptop or desktop.
+
+    :return: 'mac_laptop' or 'mac_desktop'
+    :rtype: string
+    """
+    model = cmdmod['cmd.run']("sysctl hw.model |awk '{ print $2 }'")
+    hardware_type = 'mac_laptop' if re.search('Book', model) else 'mac_desktop'
+    return {'mac_laptop':hardware_type}
+
+
+def mac_current_user():
+    """Determine currently logged in user.
+
+    :return: short loginname of current user.
+    :rype: string
+    """
+    output = cmdmod['cmd.run']("/bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }'")
+    return {'mac_current_user':output}
+
+
+def mac_timezone():
+    """Determine system timezone"""
+    output = cmdmod['cmd.run']("/usr/sbin/systemsetup -gettimezone")
+    return {'mac_timezone':output[11:]}

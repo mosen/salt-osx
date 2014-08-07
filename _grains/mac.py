@@ -6,21 +6,9 @@
     it manageable).
 '''
 
-import os
-import socket
-import sys
-import re
-import platform
+
 import logging
-import locale
-
-import salt.log
-
-
-from salt._compat import string_types
-
 import salt.utils
-import salt.utils.network
 import salt.modules.cmdmod
 # import logging
 
@@ -42,15 +30,6 @@ cmdmod = {
     'cmd.run_all': salt.modules.cmdmod._run_all_quiet
 }
 
-def _sp_platform():
-    '''
-    Derive grains from SystemProfiler SPHardwareDataType
-    Implemented in /System/Library/SystemProfiler/SPPlatformReporter.spreporter
-    '''
-    platform_plist = cmdmod['cmd.run']('system_profiler SPHardwareDataType -xml')
-
-
-
 def model():
     '''
     Get the (short) hardware model name. Eg. MacPro5,1
@@ -58,6 +37,14 @@ def model():
     # for k in __salt__.iterkeys():
     #     print k
 
-    model = cmdmod['cmd.run']("sysctl hw.model |awk '{ print $2 }'")
+    model = cmdmod['cmd.run']("sysctl -b hw.model")
     return {'model': model}
+
+
+def has_wireless():
+    '''
+    Determine whether the mac has a wireless network interface.
+    '''
+    output = cmdmod['cmd.run']("networksetup -listallhardwareports | grep -E '(Wi-Fi|AirPort)' -A 1 | grep -o en.")
+    return None if output == "" else {'mac_has_wireless':True}
 

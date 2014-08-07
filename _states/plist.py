@@ -57,6 +57,7 @@ def managed_keys(name, **keys):
 
     return ret
 
+
 def absent_keys(name, **keys):
     """
     This function will remove a list of keys, given a structure that mimics their location in the property list.

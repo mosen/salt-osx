@@ -26,6 +26,7 @@ try:
     log.debug('Importing ctypes')
 
     from ctypes import *
+    from Foundation import NSDictionary
     import objc
 
     # CoreFoundation Junk
@@ -48,6 +49,13 @@ try:
 
     kCFAllocatorDefault = c_void_p()
 
+    class OpaqueType(Structure):
+        pass
+
+    OpaqueTypeRef = POINTER(OpaqueType)
+
+    CFErrorRef = OpaqueTypeRef
+
     CFErrorCopyDescription = CF.CFErrorCopyDescription
     CFErrorCopyDescription.restype = c_void_p
     CFErrorCopyDescription.argtypes = [c_void_p]
@@ -67,7 +75,7 @@ try:
 
     SMJobSubmit = ServiceManagement.SMJobSubmit
     SMJobSubmit.restype = c_bool
-    SMJobSubmit.argtypes = [c_void_p, c_void_p, c_void_p, POINTER(c_void_p)]
+    SMJobSubmit.argtypes = [c_void_p, c_void_p, c_void_p, CFErrorRef]
 
     SMJobRemove = ServiceManagement.SMJobRemove
     SMJobRemove.restype = c_bool
@@ -143,30 +151,32 @@ def _remove_job(authRef, job_label):
             CFRelease(desc_cfstr)
 
 
-def _submit_job(authRef, job_dict):
+def _submit_job(job_dict):
     """Call SMJobSubmit to submit a launchd job description.
 
     No return"""
 
-    desc_cfstr = None
-    cf_job_dict = job_dict
+    authref = __salt__['authorization.create'](kSMRightModifySystemDaemons)
 
-    try:
-        error = c_void_p()
+    error = CFErrorRef()
 
-        ok = SMJobSubmit(kSMDomainSystemLaunchd,
-                         cf_job_dict,  # objc bridges to NSDictionary bridges to CFDictionary
-                         authRef,
-                         byref(error))
+    log.debug(job_dict)
 
-        if not ok:
-            desc_cfstr = CFErrorCopyDescription(error)
-            CFShow(desc_cfstr)
-            raise DaemonInstallException("SMJobSubmit error (see above)")
+    job_dict_p = NSDictionary(job_dict)
 
-    finally:
-        if desc_cfstr:
-            CFRelease(desc_cfstr)
+    domain = CFStringCreateWithCString(None, kSMDomainSystemLaunchd, kCFStringEncodingUTF8)
+
+    ok = SMJobSubmit(domain, byref(job_dict_p), authref, byref(error))
+
+    if not ok:
+        error_desc = NSString()
+        error_desc = CFErrorCopyDescription(error)
+        log.error(error_desc)
+        #raise DaemonInstallException("SMJobSubmit error (see above)")
+
+    __salt__['authorization.free'](authref)
+
+    return ok
 
 
 def _bless_helper(authRef, job_label):
@@ -333,16 +343,13 @@ def load(name, persist=False):
     job_dict = __salt__['plist.read'](name)  # Gets a native NSCFDictionary
 
     try:
-        authref = __salt__['authorization.create'](kSMRightModifySystemDaemons)
-        _submit_job(authref, job_dict)
+
+        status = _submit_job(job_dict)
 
     except DaemonInstallException, e:
         log.error("Exception trying to install launchd job: %r" % e)
         raise e
 
-    finally:
-        if authref:
-        __salt__['authorization.free'](authref)
 
 
 def unload(label, persist=False):

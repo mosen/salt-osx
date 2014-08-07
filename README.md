@@ -32,10 +32,6 @@ master or masterless setup.
 
 Control the state of bluetooth power and discoverability on the mac platform
 
-### munki ###
-
-A simple wrapper to control munki tools client configuration
-
 ### plist ###
 
 PropertyList management via YAML fragments
@@ -189,16 +185,6 @@ Get and set the power/sleep button display
 (TODO) Display password hints y/n
 (TODO) Display language input selection y/n
 
-## munki tools ##
-
-Although munki tools more or less takes care of itself, there are a few preferences you may want to control (even outside
-of your deployment/bootstrap).
-
-Get and set the Client Identifier
-
-    munki.cid
-    munki.set_cid MyClientIdentifier
-
 ## plist ##
 
 The plist module is designed to modify or create property list files anywhere on the filesystem.
@@ -238,5 +224,18 @@ Restart is a basic wrapper around `shutdown -r`, default is 'now':
 ## TODO ##
 
 General Roadmap Notes:
+
+- SaltStack Shortcomings:
+    + **services**: launchctl.py enumeration of standard directories could potentially be faster through other API
+    methods. If i want to be really pedantic then `restart()` doesnt need the `-w` flag for overrides.
+    + **user**: mac_user.py Badly needs ShadowHash implementation similar to macadmin in ruby.
+    + **pkg**: brew.py/macports.py No implementation for `installer` tool? Steal another implementation just so that
+    Salt could be used to bootstrap other package management solutions.
+    
+- Stuff that should be parity with macadmin:
+    + computer/computer group records (DSLocal)
+    + authorization db
+    + everything and anything that relates to profile installation
+    
 
 - Need to support configuration profile management including generation and remote enrollment.

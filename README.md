@@ -1,6 +1,6 @@
 ## salt-osx ##
 
-Salt Modules/Grains/States for Mac OS X w/PyObjC. *Experimental*
+Manage a mac fleet with SaltStack: Salt Modules/Grains/States for Mac OS X w/PyObjC. *Alpha Quality*
 
 The motivation for this repository is to provide SaltStack modules that call into native Foundation/Cocoa API via PyObjC.
 This would theoretically give you more control over configuration than scripting alone.
@@ -11,7 +11,7 @@ There are also some modules that use command line tools.
 
 **VERY IMPORTANT:** You must disable multiprocessing on the Mac OS X minions for almost anything to work. This is
 because salt-minion threading does not work **at all** with CoreFoundation API. If you do not do this, the minion will crash
-without warning when trying to execute one of these modules.
+without warning when trying to execute some modules. This is not the case with `salt-call`.
 
 You must edit your minion configuration file, usually `/etc/salt/minion` to include the following line:
 
@@ -231,6 +231,8 @@ General Roadmap Notes:
     + **user**: mac_user.py Badly needs ShadowHash implementation similar to macadmin in ruby.
     + **pkg**: brew.py/macports.py No implementation for `installer` tool? Steal another implementation just so that
     Salt could be used to bootstrap other package management solutions.
+    + **netstat**: No netstat implementation for osx
+    + **ps**: No ps implementation for osx
     
 - Stuff that should be parity with macadmin:
     + computer/computer group records (DSLocal)

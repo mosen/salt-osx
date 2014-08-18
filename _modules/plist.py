@@ -78,9 +78,14 @@ def _readPlist(filepath):
     If the file doesn't exist, this returns None
     """
     if not os.path.isfile(filepath):
+        log.debug('Tried to read non-existent property list at path: {0}'.format(filepath))
         return None
 
     plistData = NSData.dataWithContentsOfFile_(filepath)
+    # dataObject, plistFormat, error = \
+    #     NSPropertyListSerialization.propertyListWithData_options_format_error_(
+    #         plistData, NSPropertyListMutableContainers, None, None)
+
     dataObject, plistFormat, error = \
         NSPropertyListSerialization.propertyListFromData_mutabilityOption_format_errorDescription_(
             plistData, NSPropertyListMutableContainers, None, None)
@@ -457,6 +462,7 @@ def write_keys(path, keys, test=False):
         _writePlist(dataObject, path)
 
     return changed
+
 
 def delete_keys(path, keys, test=False):
     """

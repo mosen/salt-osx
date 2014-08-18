@@ -16,10 +16,10 @@ Management of specific keys and their values can be done using these states.
 .. note::
 
     This uses native API by default, and therefore should be safe with files managed by cfprefsd.
+    Apple still does not recommend modification of property lists if the owning process is running.
 
 """
 import salt.utils
-
 
 def __virtual__():
     """Only load on OSX"""

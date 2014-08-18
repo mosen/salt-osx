@@ -5,6 +5,12 @@ Enable or disable Bluetooth power and discoverability.
 :maturity:      new
 :platform:      darwin
 """
+import salt.utils
+
+def __virtual__():
+    """Only load on OSX"""
+    return 'bluetooth' if salt.utils.is_darwin() else False
+
 
 def managed(name, enabled, discoverable=True):
     '''

@@ -18,6 +18,8 @@ def __virtual__():
     if salt.utils.is_darwin():
         if re.search('Book', salt.modules.cmdmod._run_quiet('sysctl -b hw.model')):
             return __virtualname__
+        else:
+            return False
     else:
         return False
 

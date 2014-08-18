@@ -5,10 +5,8 @@ manage the "remote management" service via kickstart and property lists.
 import os
 import logging
 import binascii
-
-# Import salt libs
 import salt.utils
-
+from salt.exceptions import CommandExecutionError
 
 log = logging.getLogger(__name__)
 
@@ -50,13 +48,6 @@ def _xorhexs(xor, value):
     result = reduce(reduce_xor, xor_list, '')
     return result
 
-def _get_all_ard_users():
-    '''
-    Get a list of all users which have ARD privileges on the target.
-    '''
-    output = __salt__['cmd.run']('/usr/bin/dscl . list /Users naprivs')
-    users = {parts[0]:parts[1] for parts in [line.split() for line in output.splitlines()]}
-    return users
 
 def _validate_user(name):
     output = __salt__['cmd.run']('/usr/bin/dscl /Search -search /Users name "{}"'.format(name))
@@ -196,8 +187,7 @@ def users():
 
         salt '*' ard.users
     '''
-    return _get_all_ard_users()
-
+    return __salt__['dscl.list']('.', '/Users', 'naprivs')
 
 def set_user_privs(username, naprivs):
     '''
@@ -215,4 +205,7 @@ def set_user_privs(username, naprivs):
 
         salt '*' ard.user_privs admin x
     '''
-    pass
+    if __salt__['dscl.search']('/Search', '/Users', 'name', username) is None:
+        raise CommandExecutionError('Cannot set privileges for user: {0}, user was not found'.format(username))
+    else:
+        pass

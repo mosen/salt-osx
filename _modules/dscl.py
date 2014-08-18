@@ -1,11 +1,8 @@
-"""
+# -*- coding: utf-8 -*-
+'''
 Query the local directory service and/or directories on the search path using 'dscl' (Mac OS X only)
+'''
 
-:maintainer:    Mosen <mosen@github.com>
-:maturity:      new
-:depends:       cmd
-:platform:      darwin
-"""
 import logging
 import re
 import salt.utils
@@ -34,6 +31,12 @@ def search(datasource, path, key, value):
 
     value
         The pattern to match
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' dscl.search . /Users UserShell /bin/bash
     '''
     output = __salt__['cmd.run'](
         '/usr/bin/dscl {0} -search {1} {2} "{3}"'.format(datasource, path, key, value.replace('"', '\"'))
@@ -46,8 +49,10 @@ def search(datasource, path, key, value):
 
 def list(datasource, path, key=''):
     '''
-    List records in the given path. You can optionally supply a key value to
+    List records in the given path. You can optionally supply an attribute name to
     retrieve with each record.
+
+    Returns a dict containing keys of records, and values for the requested attribute (if any was supplied)
 
     datasource
         The datasource to search. Usually either '.' (for the local directory) or '/Search'
@@ -58,6 +63,12 @@ def list(datasource, path, key=''):
 
     key
         The attribute to fetch for each record
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' dscl.list . /Users RealName
     '''
     output = __salt__['cmd.run'](
         '/usr/bin/dscl {0} list {1} {2}'.format(datasource, path, key)

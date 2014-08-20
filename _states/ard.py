@@ -10,7 +10,7 @@ configuration of the remote management service and privileges.
         - managed
         - enabled: True
         - allow_all_users: True
-        - all_users_privs: "-1073741569"
+        - all_users_privs: none
         - enable_menu_extra: True
         - enable_dir_logins: True
         - directory_groups:
@@ -21,10 +21,13 @@ configuration of the remote management service and privileges.
         - allow_vnc_requests: True
         - allow_wbem_requests: True
         - users:
-          - joe: "-1073741569"
-          - sally: "-1073741569"
+          - joe: all
+          - sally: none
 '''
+import logging
 import salt.utils
+
+log = logging.getLogger(__name__)
 
 __virtualname__ = 'ard'
 
@@ -47,16 +50,7 @@ _ATTR_TO_KEY = {
     'allow_wbem_requests': 'WBEMIncomingAccessEnabled'
 }
 
-_KEY_TO_ATTR = {
-    'ARD_AllLocalUsers': 'allow_all_users',
-    'ARD_AllLocalUsersPrivs': 'all_users_privs',
-    'LoadRemoteManagementMenuExtra': 'enable_menu_extra',
-    'DirectoryGroupLoginsEnabled': 'enable_dir_logins',
-    'DirectoryGroupList': 'directory_groups',
-    'VNCLegacyConnectionsEnabled': 'enable_legacy_vnc',
-    'ScreenSharingReqPermEnabled': 'allow_vnc_requests',
-    'WBEMIncomingAccessEnabled': 'allow_wbem_requests'
-}
+_KEY_TO_ATTR = {y:x for x,y in _ATTR_TO_KEY.iteritems()}
 
 def managed(name, enabled=True, **kwargs):
     '''
@@ -72,7 +66,7 @@ def managed(name, enabled=True, **kwargs):
         Should all local users be allowed to connect?
 
     all_users_privs
-        Privileges applied if `allow_all_users` was enabled.
+        Privileges applied if `allow_all_users` was enabled. See execution module ``ard.set_user_privs`` for options.
 
     enable_menu_extra
         Whether or not to enable the ard menu extra
@@ -96,7 +90,7 @@ def managed(name, enabled=True, **kwargs):
         Whether to allow WBEM requests
 
     users
-        List of users and their privileges
+        List of users and their privileges. See execution module ``ard.set_user_privs`` for options.
     '''
     ret = {'name':name, 'changes':{}, 'result':False, 'comment':''}
 
@@ -109,6 +103,16 @@ def managed(name, enabled=True, **kwargs):
         changes['new']['enabled'] = enabled
 
     preferences = {_ATTR_TO_KEY[k]:v for k,v in kwargs.iteritems() if k in _ATTR_TO_KEY}
+
+    users = __salt__['ard.users']()
+    log.debug('Existing remote management privs: {}'.format(users))
+
+    if 'users' in kwargs:
+        log.debug('Desired remote management privs: {}'.format(kwargs['users']))
+
+        usersDiff = {user:privs for (user, privs) in kwargs['users'].iteritems() if user not in users or users[user] != privs} #   }
+        changes['old']['users'] = users
+        changes['new']['users'] = usersDiff
 
     if __opts__['test'] == True:
         prefDiff = __salt__['plist.write_keys'](_PATHS['preferences'], preferences, True)

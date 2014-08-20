@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 '''
-Query the local directory service and/or directories on the search path using 'dscl' (Mac OS X only)
+Query the local directory service and/or directories on the search path using ``dscl`` (Mac OS X only).
+This is just a simple wrapper which services other execution modules.
 '''
 
 import logging
@@ -75,3 +76,33 @@ def list(datasource, path, key=''):
     )
 
     return {matches.group(1):matches.group(2) for matches in [re.match('(\S*)\s*(.*)', line) for line in output.splitlines()]}
+
+def create(datasource, path, key, value):
+    '''
+    Set the value of an attribute, given the path to a directory record.
+
+    datasource
+        The datasource to search. Usually either '.' (for the local directory) or '/Search'
+        for all directory services in the search path.
+
+    path
+        The path of the resource eg. /Users/admin
+
+    key
+        The attribute to set
+
+    value
+        The value to set for that attribute
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' dscl.create . /Users/admin RealName 'Joey Joe Joe'
+    '''
+    status = __salt__['cmd.retcode'](
+        '/usr/bin/dscl {0} create {1} {2} {3}'.format(datasource, path, key, value)
+    )
+
+    return True if status == 0 else False
+

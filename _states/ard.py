@@ -104,16 +104,6 @@ def managed(name, enabled=True, **kwargs):
 
     preferences = {_ATTR_TO_KEY[k]:v for k,v in kwargs.iteritems() if k in _ATTR_TO_KEY}
 
-    users = __salt__['ard.users']()
-    log.debug('Existing remote management privs: {}'.format(users))
-
-    if 'users' in kwargs:
-        log.debug('Desired remote management privs: {}'.format(kwargs['users']))
-
-        usersDiff = {user:privs for (user, privs) in kwargs['users'].iteritems() if user not in users or users[user] != privs} #   }
-        changes['old']['users'] = users
-        changes['new']['users'] = usersDiff
-
     if __opts__['test'] == True:
         prefDiff = __salt__['plist.write_keys'](_PATHS['preferences'], preferences, True)
         ret['result'] = None
@@ -140,3 +130,27 @@ def managed(name, enabled=True, **kwargs):
 
     return ret
 
+def privileges(name, **privs):
+    '''
+    Manage remote management privileges for a given local directory user.
+    '''
+    ret = {'name':name, 'changes':{}, 'result':False, 'comment':''}
+
+    changes = {'old':{}, 'new':{}}
+
+    changes['old'] = __salt__['ard.user'](name)
+    changes['new'] = privs
+
+    if __opts__['test'] == True:
+        ret['result'] = None
+    else:
+        ret['result'] = True
+
+    return ret
+    #
+    # if 'users' in kwargs:
+    #     log.debug('Desired remote management privs: {}'.format(kwargs['users']))
+    #
+    #     usersDiff = {user:privs for (user, privs) in kwargs['users'].iteritems() if user not in users or users[user] != privs} #   }
+    #     changes['old']['users'] = users
+    #     changes['new']['users'] = usersDiff

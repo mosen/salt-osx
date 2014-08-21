@@ -240,10 +240,40 @@ def set_vncpw(password=None):
 
     return True
 
+def user(username, human=True):
+    '''
+    Retrieve remote management privileges for a single user.
+    Returns a dictionary with username as key, and list of privileges as the value.
+
+    username
+        Exact local login name
+
+    human : True
+        Whether the signed integer privilege should be converted to a readable short string.
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' ard.users
+    '''
+    privs = __salt__['dscl.read']('.', '/Users/{0}'.format(username), 'naprivs')
+
+    if privs is None:
+        return None
+
+    privs_long = int(privs.values()[0])
+
+    if human:
+        return {username:_privs_list(privs_long)}
+    else:
+        return {username:privs_long}
+
 
 def users(human=True):
     '''
     Get a list of users with their privileges to remote management.
+    Returns a list of dictionaries with username as key, and list of privileges as the value.
 
     human : True
         Whether the signed integer privilege should be converted to a readable short string.
@@ -263,19 +293,18 @@ def users(human=True):
     return {user:_privs_list(int(privs)) for user, privs in privs.iteritems()}
 
 
-def set_user_privs(username, naprivs):
+def set_user_privs(username, privileges):
     '''
     Set user remote management privileges.
 
     username
         Valid system user.
 
-    naprivs
-        Remote management privileges. A string representing a fixed privilege or set of privileges.
-        At the moment, combinations of privileges are not supported. Use one of the predefined strings to set that
-        privilege.
+    privileges
+        Remote management privileges. A comma delimited string containing privileges in the short form listed below.
+        The ``all`` privilege can be used instead of combining every privilege.
 
-        One of:
+        Valid privilege names:
         - ``enabled`` enabled but nothing set
         - ``text`` send text msgs
         - ``control_notified`` control and observe, show when observing
@@ -293,17 +322,17 @@ def set_user_privs(username, naprivs):
 
     .. code-block:: bash
 
-        salt '*' ard.user_privs admin all
+        salt '*' ard.user_privs admin settings,launch,copy
     '''
-    if naprivs not in _NAPRIVS:
-        log.error('Invalid remote management privileges for user {0}: {1}'.format(username, naprivs))
+    if __salt__['dscl.search']('/Search', '/Users', 'name', username) is None:
+        log.warning('Cannot set remote management privileges for user: {0}, user was not found in the directory search path.'.format(username))
         return False
 
-    if __salt__['dscl.search']('/Search', '/Users', 'name', username) is None:
-        log.warning('Cannot set remote management privileges for user: {0}, user was not found'.format(username))
-        return False
-    else:
-        success = __salt__['dscl.create']('.', '/Users/{0}'.format(username), 'naprivs', _NAPRIVS[naprivs])
-        return success
+    naprivs = privileges.split(',')
+    valid_naprivs = [np for np in naprivs if np in _NAPRIVS]
+    napriv_long = ~(int('0xFFFFFFFFFFFFFFFF',16) - reduce(lambda x,y: x|y, [_NAPRIVS[valid_napriv] for valid_napriv in valid_naprivs]))
+
+    success = __salt__['dscl.create']('.', '/Users/{0}'.format(username), 'naprivs', napriv_long)
+    return success
 
 

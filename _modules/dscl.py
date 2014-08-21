@@ -106,3 +106,32 @@ def create(datasource, path, key, value):
 
     return True if status == 0 else False
 
+def read(datasource, path, key=None):
+    '''
+    Read an attribute (or all attributes) of a directory record.
+
+    datasource
+        The datasource to search. Usually either '.' (for the local directory) or '/Search'
+        for all directory services in the search path.
+
+    path
+        The path of the resource eg. /Users/admin
+
+    key
+        The attribute to set
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' dscl.read . /Users/admin naprivs
+    '''
+    output = __salt__['cmd.run'](
+        '/usr/bin/dscl {0} read {1} {2}'.format(datasource, path, key)
+    )
+
+    if re.search('No such key', output):
+        log.warning('Attempted to read a record attribute that doesnt exist: {0}'.format(key))
+        return None
+
+    return {parts[0]:parts[1] for parts in [line.split(': ') for line in output.splitlines()]}

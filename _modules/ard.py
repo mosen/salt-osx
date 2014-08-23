@@ -15,18 +15,21 @@ log = logging.getLogger(__name__)
 __virtualname__ = 'ard'
 
 _PATHS = {
-    'kickstart':'/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart',
-    'dscl':'/usr/bin/dscl',
-    'vnc_password':'/Library/Preferences/com.apple.VNCSettings.txt',
-    'preferences':'/Library/Preferences/com.apple.RemoteManagement.plist',
-    'trigger':'/private/etc/RemoteManagement.launchd'
+    'kickstart': '/System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart',
+    'dscl': '/usr/bin/dscl',
+    'vnc_password': '/Library/Preferences/com.apple.VNCSettings.txt',
+    'preferences': '/Library/Preferences/com.apple.RemoteManagement.plist',
+    'trigger': '/private/etc/RemoteManagement.launchd'
 }
+
+# This number is used for basic XOR encryption by the VNC service.
+_VNC_SEED = '1734516E8BA8C5E2FF1C39567390ADCA'
 
 # Directly lifted from managedmac:
 # Privileges are are represented using a signed integer stored as a
 # string. Yes, confusing. Use this Bit map chart to figure it out:
 #
-#    64 Bit Hex Int Bit Decimal Checkbox Item
+# 64 Bit Hex Int Bit Decimal Checkbox Item
 #    ================================================================
 #    FFFFFFFFC0000000 0 -1073741824 enabled but nothing set
 #    FFFFFFFFC0000001 1 -1073741823 send text msgs
@@ -42,45 +45,42 @@ _PATHS = {
 #    FFFFFFFFC00000FF -1073741569 all enabled
 #    FFFFFFFF80000000 -2147483648 all disabled
 
-# 0xC0 - User is not notified of control
-# 0x80 - User IS notified of control
-_NAPRIV_HIDDEN_MASK = int('0x00000000FF000000',16)
 
-_NAPRIV = int('0xFFFFFFFFC0000000',16)
-_NAPRIV_NO_OBSERVE = int('0xFFFFFFFF80000000',16)
+# Mask out bytes that control whether the user is notified when observed.
+_NAPRIV_HIDDEN_MASK = int('0x00000000FF000000', 16)
 
-_NAPRIV_ENABLED = _NAPRIV
-_NAPRIV_TEXT_MESSAGES = _NAPRIV + (1 << 0)
-_NAPRIV_CONTROL_OBSERVE_NOTIFIED = _NAPRIV + (1 << 1)
-_NAPRIV_COPY_ITEMS = _NAPRIV + (1 << 2)
-_NAPRIV_DELETE_REPLACE_ITEMS = _NAPRIV + (1 << 3)
-_NAPRIV_GENERATE_REPORTS = _NAPRIV + (1 << 4)
-_NAPRIV_OPEN_QUIT_APPS = _NAPRIV + (1 << 5)
-_NAPRIV_CHANGE_SETTINGS = _NAPRIV + (1 << 6)
-_NAPRIV_RESTART_SHUTDOWN = _NAPRIV + (1 << 7)
-_NAPRIV_ALL = _NAPRIV_ENABLED | _NAPRIV_TEXT_MESSAGES | _NAPRIV_CONTROL_OBSERVE_NOTIFIED | _NAPRIV_COPY_ITEMS \
+# Mask out bytes that are used to store privileges
+_NAPRIV_PRIVS_MASK = int('0x00000000000000FF', 16)
+
+# This is the base 64-bit integer used. Hidden attribute and privileges will be OR'ed to produce the final naprivs int.
+_NAPRIV = int('0xFFFFFFFF00000000', 16)
+
+# _NAPRIV_ENABLED_DISABLED = 0  # This can mean enabled or disabled when no privileges are set.
+_NAPRIV_TEXT_MESSAGES = 1 << 0
+_NAPRIV_CONTROL_OBSERVE = 1 << 1
+_NAPRIV_COPY_ITEMS = 1 << 2
+_NAPRIV_DELETE_REPLACE_ITEMS = 1 << 3
+_NAPRIV_GENERATE_REPORTS = 1 << 4
+_NAPRIV_OPEN_QUIT_APPS = 1 << 5
+_NAPRIV_CHANGE_SETTINGS = 1 << 6
+_NAPRIV_RESTART_SHUTDOWN = 1 << 7
+_NAPRIV_ALL = _NAPRIV_TEXT_MESSAGES | _NAPRIV_CONTROL_OBSERVE | _NAPRIV_COPY_ITEMS \
               | _NAPRIV_DELETE_REPLACE_ITEMS | _NAPRIV_GENERATE_REPORTS | _NAPRIV_OPEN_QUIT_APPS | _NAPRIV_CHANGE_SETTINGS \
               | _NAPRIV_RESTART_SHUTDOWN
 
-
-_NAPRIVS = {  # naprivs borrowed from managedmac
-   'enabled': _NAPRIV_ENABLED,
-   'text': _NAPRIV_TEXT_MESSAGES,
-   'control_notified': _NAPRIV_CONTROL_OBSERVE_NOTIFIED,
-#   'control_hidden': '-2147483646',
-   'copy': _NAPRIV_COPY_ITEMS,
-   'delete_replace': _NAPRIV_DELETE_REPLACE_ITEMS,
-   'reports': _NAPRIV_GENERATE_REPORTS,
-   'launch': _NAPRIV_OPEN_QUIT_APPS,
-   'settings': _NAPRIV_CHANGE_SETTINGS,
-   'restart_shutdown': _NAPRIV_RESTART_SHUTDOWN,
-   'all': _NAPRIV_ALL
-#   'disabled': '-2147483648'
+_NAPRIVS = {
+    'text': _NAPRIV_TEXT_MESSAGES,
+    'control_observe': _NAPRIV_CONTROL_OBSERVE,
+    'copy': _NAPRIV_COPY_ITEMS,
+    'delete_replace': _NAPRIV_DELETE_REPLACE_ITEMS,
+    'reports': _NAPRIV_GENERATE_REPORTS,
+    'launch': _NAPRIV_OPEN_QUIT_APPS,
+    'settings': _NAPRIV_CHANGE_SETTINGS,
+    'restart_shutdown': _NAPRIV_RESTART_SHUTDOWN
 }
 
-_NAPRIVS_FLIP = {y:x for x,y in _NAPRIVS.iteritems()}
+_NAPRIVS_FLIP = {y: x for x, y in _NAPRIVS.iteritems()}
 
-_VNC_SEED = '1734516E8BA8C5E2FF1C39567390ADCA'
 
 def __virtual__():
     '''
@@ -97,32 +97,76 @@ def _xorhexs(xor, value):
     if not value:
         value = ''
 
-    xor_list = [int(h+l, 16) for (h,l) in zip(xor[0::2], xor[1::2])]
-    value_list = [int(h+l, 16) for (h,l) in zip(value[0::2], value[1::2])]
+    xor_list = [int(h + l, 16) for (h, l) in zip(xor[0::2], xor[1::2])]
+    value_list = [int(h + l, 16) for (h, l) in zip(value[0::2], value[1::2])]
 
     def reduce_xor(memo, c):
         '''reduce by XORing and substituting with NUL when out of bounds'''
         v = value_list.pop(0) if len(value_list) > 0 else 0
-        return memo + chr(c^v)
+        return memo + chr(c ^ v)
 
     result = reduce(reduce_xor, xor_list, '')
     return result
 
 
-def _privs_list(naprivs):
+def _is_notified(naprivs):
+    '''
+    Given a signed integer of remote management privileges, determine whether the user will be notified (when screen
+    is being observed).
+    '''
+    # 0xC0 - User is notified of control / User access is enabled if privs are nothing.
+    # 0x80 - User will not be notified / User access is disabled if privs are nothing.
+    # Take highest byte and bit shift down to compare against 0xC0/0x80
+    notify_byte = (naprivs & _NAPRIV_HIDDEN_MASK) >> 24
+    return True if notify_byte & int('0xC0', 16) == int('0xC0', 16) else False
+
+
+def _naprivs_to_list(naprivs):
     '''
     Convert a signed integer representation of remote management privileges to
     a list of short words indicating the permissions set.
 
     If the 'all' privilege is set, only returns 'all'
     '''
-    privs = [k for k,v in _NAPRIVS.iteritems() if naprivs & v == v]
-    return ['all'] if 'all' in privs else privs
+    if naprivs & _NAPRIV_ALL == _NAPRIV_ALL:
+        privs = ['all']
+    else:
+        privs = [k for k, v in _NAPRIVS.iteritems() if naprivs & v == v]
+
+    if _is_notified(naprivs):
+        privs.append('observe_notified')
+    else:
+        privs.append('observe_hidden')
+
+    return privs
 
 
-def _validate_user(name):
-    output = __salt__['cmd.run']('/usr/bin/dscl /Search -search /Users name "{}"'.format(name))
-    pass
+def _list_to_naprivs(privs):
+    '''
+    Convert a list of short words to a signed integer representing those remote management privileges.
+
+    If you specify that a user has 'all' privilege, all other privileges in the set are discarded.
+
+    If 'observe_hidden' or 'observe_notified' are not contained within the set, we will assume that the observe
+    privilege will come without user notification.
+    '''
+    if 'all' in privs:
+        valid_privs = ['all']
+        napriv_privs = _NAPRIV_ALL
+    else:
+        valid_privs = [priv for priv in privs if priv in _NAPRIVS]
+        napriv_privs = reduce(lambda x, y: x | y, [_NAPRIVS[valid_priv] for valid_priv in valid_privs])
+
+    if 'observe_notified' in privs:
+        notify_byte = int('0xC0', 16) << 24  # Observation Notified
+    else:
+        notify_byte = int('0x80', 16) << 24  # Observation Hidden
+
+    naprivs = _NAPRIV | notify_byte | napriv_privs
+    naprivs_twos = ~(int('0xFFFFFFFFFFFFFFFF', 16) - naprivs)
+
+    return naprivs_twos
+
 
 def active():
     '''
@@ -191,6 +235,7 @@ def deactivate():
 
     return output
 
+
 def vncpw():
     '''
     Retrieve the current VNC password.
@@ -209,13 +254,11 @@ def vncpw():
     f = open(passwordPath, 'r')
 
     try:
-        # Password is just XORed, implementation borrowed from dayglojesus/managedmac
         crypted_string = f.read()
-        password = _xorhexs(_VNC_SEED, crypted_string)
+        password = _xorhexs(_VNC_SEED, crypted_string).strip("\x00")  # XOR and strip NULs
     finally:
         f.close()
 
-    # TODO: strip NULs
     return password
 
 
@@ -247,6 +290,7 @@ def set_vncpw(password=None):
 
     return True
 
+
 def user(username, human=True):
     '''
     Retrieve remote management privileges for a single user.
@@ -272,9 +316,9 @@ def user(username, human=True):
     privs_long = int(privs.values()[0])
 
     if human:
-        return {username:_privs_list(privs_long)}
+        return {username: _naprivs_to_list(privs_long)}
     else:
-        return {username:privs_long}
+        return {username: privs_long}
 
 
 def users(human=True):
@@ -297,7 +341,7 @@ def users(human=True):
     if not human:
         return privs
 
-    privs_human = {user:_privs_list(int(privs)) for user, privs in privs.iteritems()}
+    privs_human = {user: _naprivs_to_list(int(privs)) for user, privs in privs.iteritems()}
     return privs_human
 
 
@@ -312,11 +356,13 @@ def set_user_privs(username, privileges):
         Remote management privileges. A comma delimited string containing privileges in the short form listed below.
         The ``all`` privilege can be used instead of combining every privilege.
 
+        If you do not specify whether the user will be notified when they are being observed, the default is NOT to
+        notify the user.
+
         Valid privilege names:
         - ``enabled`` enabled but nothing set
         - ``text`` send text msgs
-        - ``control_notified`` control and observe, show when observing
-        - ``control_hidden`` control and observe don't show when observing
+        - ``control_observe`` control and observe
         - ``copy`` copy items
         - ``delete_replace`` delete and replace items
         - ``reports`` generate reports
@@ -326,6 +372,10 @@ def set_user_privs(username, privileges):
         - ``all`` all enabled
         - ``disabled`` all disabled
 
+        Special privilege to modify user notification when a user is observed:
+        - ``observe_notified`` notify user when being observed.
+        - ``observe_hidden`` (default) user is not notified.
+
     CLI Example:
 
     .. code-block:: bash
@@ -333,14 +383,46 @@ def set_user_privs(username, privileges):
         salt '*' ard.user_privs admin settings,launch,copy
     '''
     if __salt__['dscl.search']('/Search', '/Users', 'name', username) is None:
-        log.warning('Cannot set remote management privileges for user: {0}, user was not found in the directory search path.'.format(username))
+        log.warning(
+            'Cannot set remote management privileges for user: {0}, user was not found in the directory search path.'.format(
+                username))
         return False
 
     naprivs = privileges.split(',')
-    valid_naprivs = [np for np in naprivs if np in _NAPRIVS]
-    napriv_long = ~(int('0xFFFFFFFFFFFFFFFF',16) - reduce(lambda x,y: x|y, [_NAPRIVS[valid_napriv] for valid_napriv in valid_naprivs]))
+    napriv_long = _list_to_naprivs(naprivs)
 
     success = __salt__['dscl.create']('.', '/Users/{0}'.format(username), 'naprivs', napriv_long)
     return success
 
 
+def naprivs_list(naprivs):
+    '''
+    (Internal use) Convert a signed integer of naprivs to a python list of short words representing those privileges.
+
+    naprivs
+        Signed int representing remote management privileges
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' ard.naprivs_list -1073741824
+    '''
+    return _naprivs_to_list(int(naprivs))
+
+
+def list_naprivs(privs):
+    '''
+    (Internal use) Convert a comma delimited list of shortname privileges to a signed integer representation for the
+    remote management service.
+
+    privs
+        Comma delimited short names of privileges, no spaces.
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' ard.list_naprivs all,observe_hidden
+    '''
+    return _list_to_naprivs(privs.split(','))

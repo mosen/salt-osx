@@ -5,13 +5,14 @@ Manage a mac fleet with SaltStack: Salt Modules/Grains/States for Mac OS X w/PyO
 The motivation for this repository is to provide SaltStack modules that call into native Foundation/Cocoa API via PyObjC.
 This would theoretically give you more control over configuration than scripting alone.
 
-There are also some modules that use command line tools.
+There are also some modules that use command line tools but expand on the support provided by salt.
 
 ## Installation ##
 
-**VERY IMPORTANT:** You must disable multiprocessing on the Mac OS X minions for almost anything to work. This is
-because salt-minion threading does not work **at all** with CoreFoundation API. If you do not do this, the minion will crash
-without warning when trying to execute some modules. This is not the case with `salt-call`.
+**VERY IMPORTANT:** You must disable multiprocessing on the Mac OS X minions for native modules to work. This is
+because salt-minion threading does not work **at all** with CoreFoundation API. If you do not do this, the minion will 
+crash without warning when trying to execute some modules. This is not the case with `salt-call` as it does not seem to 
+use multiple threads.
 
 You must edit your minion configuration file, usually `/etc/salt/minion` to include the following line:
 
@@ -28,13 +29,17 @@ master or masterless setup.
 
 ## States ##
 
+### ard ###
+
+Manage the options shown in the **Remote Management** preference pane.
+
 ### bluetooth ###
 
-Control the state of bluetooth power and discoverability on the mac platform
+Control the state of Bluetooth power and discoverability on the mac platform
 
 ### plist ###
 
-PropertyList management via YAML fragments
+PropertyList management via YAML fragments.
 
 ## Execution Modules ##
 

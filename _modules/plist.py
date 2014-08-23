@@ -414,6 +414,18 @@ def read(path):
     dataObject = _readPlist(path)
     return dataObject
 
+def write(path, contents_dict):
+    '''
+    (over)write the entire contents of the property list at the specified path
+
+    path
+        An absolute path to a property list (.plist) file, including the extension
+
+    contents_dict
+        A python dict containing the objects to be encoded into the plist file.
+    '''
+    _writePlist(path, contents_dict)
+
 
 def read_keys(path, keys):
     """

@@ -33,6 +33,10 @@ master or masterless setup.
 
 Manage the options shown in the **Remote Management** preference pane.
 
+BUGS:
+- all users privileges not idempotent/not always written correctly.
+- allowed directory groups not detecting changes in group list.
+
 ### bluetooth ###
 
 Control the state of Bluetooth power and discoverability on the mac platform
@@ -42,6 +46,8 @@ Control the state of Bluetooth power and discoverability on the mac platform
 PropertyList management via YAML fragments.
 
 ## Execution Modules ##
+
+### ard ###
 
 ### bluetooth ###
 

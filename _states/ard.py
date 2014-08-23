@@ -48,12 +48,11 @@ _PATHS = {
     'preferences': '/Library/Preferences/com.apple.RemoteManagement.plist'
 }
 
-# 'all_users_privs':     'ARD_AllLocalUsersPrivs',
+# These keys dont require any munging, just comparison against desired state.
 _ATTR_TO_KEY = {
     'allow_all_users': 'ARD_AllLocalUsers',
     'enable_menu_extra': 'LoadRemoteManagementMenuExtra',
     'enable_dir_logins': 'DirectoryGroupLoginsEnabled',
-    'directory_groups': 'DirectoryGroupList',
     'enable_legacy_vnc': 'VNCLegacyConnectionsEnabled',
     'allow_vnc_requests': 'ScreenSharingReqPermEnabled',
     'allow_wbem_requests': 'WBEMIncomingAccessEnabled'
@@ -108,6 +107,7 @@ def managed(name, enabled=True, **kwargs):
     service_is_enabled = __salt__['ard.active']()
     all_users_privs = __salt__['ard.naprivs_list'](current_plist['ARD_AllLocalUsersPrivs'])
     vnc_password = __salt__['ard.vncpw']()
+    directory_groups = current_plist['DirectoryGroupList']
 
     if enabled != service_is_enabled:
         changes['old']['enabled'] = service_is_enabled
@@ -121,47 +121,49 @@ def managed(name, enabled=True, **kwargs):
         changes['old']['vnc_password'] = vnc_password
         changes['new']['vnc_password'] = kwargs['vnc_password']
 
-    current_prefs = {_KEY_TO_ATTR[k]: v for k, v in current_plist.iteritems() if k in _KEY_TO_ATTR}
-    desired_prefs = {k: v for k, v in kwargs.iteritems() if k in _ATTR_TO_KEY}
-    changed_prefs = {k: v for k, v in desired_prefs.iteritems() if k not in current_prefs or current_prefs[k] != v}
+    if 'directory_groups' in kwargs and set(directory_groups) != set(kwargs['directory_groups']):
+        changes['old']['directory_groups'] = list(directory_groups)
+        changes['new']['directory_groups'] = kwargs['directory_groups']
+
+    desired_prefs = {_ATTR_TO_KEY[k]: v for k, v in kwargs.iteritems() if k in _ATTR_TO_KEY}
+    changed_prefs = dict(current_plist)
+    for k, v in desired_prefs.iteritems():
+        changed_prefs[k] = v
 
     if __opts__['test'] == True:
-        for k, v in changed_prefs.iteritems():
-            changes['old'][k] = current_prefs[k]
-            changes['new'][k] = v
-
         ret['changes'] = changes
         ret['result'] = None
     else:
         ret['result'] = True
 
-    if len(changes['new'].keys()) == 0:
-        ret['result'] = None
-        ret['comment'] = 'No changes required'
-    else:
-        if 'enabled' in changes['new']:
+        if len(changes['new'].keys()) == 0:
+            ret['result'] = None
+            ret['comment'] = 'No changes required'
+        else:
             if changes['new'].get('vnc_password', False):
                 __salt__['ard.set_vncpw'](changes['new']['vnc_password'])
 
             if changed_prefs:
-                for k, v in changed_prefs.iteritems():
-                    current_plist[_ATTR_TO_KEY[k]] = v
-
                 if 'all_users_privs' in changes['new']:
-                    all_users_naprivs = __salt__['ard.list_naprivs'](changes['new']['all_users_privs'].join(','))
+                    all_users_naprivs = __salt__['ard.list_naprivs'](','.join(changes['new']['all_users_privs']))
                     log.debug('Setting remote management all users privilege to: {0}'.format(all_users_naprivs))
-                    current_plist['ARD_AllLocalUsersPrivs'] = all_users_naprivs
+                    changed_prefs['ARD_AllLocalUsersPrivs'] = str(all_users_naprivs)
 
-                __salt__['plist.write'](_PATHS['preferences'], current_plist)
+                if 'directory_groups' in changes['new']:
+                    changed_prefs['DirectoryGroupList'] = changes['new']['directory_groups']
 
-            if changes['new']['enabled']:
-                __salt__['ard.activate']()
-                ret['comment'] = 'Remote management enabled'
-            else:
-                __salt__['ard.deactivate']()
-                ret['comment'] = 'Remote management disabled'
+                log.debug('Attempting to write new Remote Management preferences: {0}'.format(changed_prefs))
+                __salt__['plist.write_keys'](_PATHS['preferences'], changed_prefs)
 
-        ret['changes'] = changes
+            if 'enabled' in changes['new']:
+                if changes['new']['enabled']:
+                    __salt__['ard.activate']()
+                    ret['comment'] = 'Remote management enabled'
+                else:
+                    __salt__['ard.deactivate']()
+                    ret['comment'] = 'Remote management disabled'
+
+            ret['changes'] = changes
 
     return ret
 
@@ -174,7 +176,14 @@ def privileges(name, **privs):
 
     changes = {'old': {}, 'new': {}}
 
-    old_privs = __salt__['ard.user'](name).get(name, list())
+    current_privileges = __salt__['ard.user_privs'](name)
+
+    if current_privileges is False:
+        ret['comment'] = 'Attempted to modify privileges for a non existent user: {0}'.format(name)
+        ret['result'] = False
+        return ret
+
+    old_privs = current_privileges[name] if current_privileges is not None else list()
 
     if set(old_privs) == set(privs['list']):
         ret['comment'] = 'No changes to remote management privileges required.'

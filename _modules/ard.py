@@ -291,10 +291,13 @@ def set_vncpw(password=None):
     return True
 
 
-def user(username, human=True):
+def user_privs(username, human=True):
     '''
     Retrieve remote management privileges for a single user.
     Returns a dictionary with username as key, and list of privileges as the value.
+
+    This may return false if the username was not found, or none if the user exists but the privileges
+    attribute doesn't exist (no privileges).
 
     username
         Exact local login name
@@ -306,12 +309,13 @@ def user(username, human=True):
 
     .. code-block:: bash
 
-        salt '*' ard.users
+        salt '*' ard.user_privs admin
     '''
     privs = __salt__['dscl.read']('.', '/Users/{0}'.format(username), 'naprivs')
 
-    if privs is None:
-        return None
+    if privs is False or privs is None:
+        return privs
+
 
     privs_long = int(privs.values()[0])
 
@@ -397,7 +401,8 @@ def set_user_privs(username, privileges):
 
 def naprivs_list(naprivs):
     '''
-    (Internal use) Convert a signed integer of naprivs to a python list of short words representing those privileges.
+    (Internal use) Convert a signed integer of naprivs to a python list of short words representing
+    those privileges.
 
     naprivs
         Signed int representing remote management privileges
@@ -413,8 +418,8 @@ def naprivs_list(naprivs):
 
 def list_naprivs(privs):
     '''
-    (Internal use) Convert a comma delimited list of shortname privileges to a signed integer representation for the
-    remote management service.
+    (Internal use) Convert a comma delimited list of shortname privileges to a signed integer
+    representation for the remote management service.
 
     privs
         Comma delimited short names of privileges, no spaces.

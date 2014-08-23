@@ -109,16 +109,19 @@ def create(datasource, path, key, value):
 def read(datasource, path, key=None):
     '''
     Read an attribute (or all attributes) of a directory record.
+    Returns a dict containing a keys and values.
 
     datasource
         The datasource to search. Usually either '.' (for the local directory) or '/Search'
         for all directory services in the search path.
 
     path
-        The path of the resource eg. /Users/admin
+        The path of the resource eg. /Users/admin.
+        If the path is invalid, this will return False
 
-    key
-        The attribute to set
+    key : None
+        The attribute to get, the default (None) retrieves all attributes.
+        If the key doesnt exist as an attribute of the record, this will return an empty dict
 
     CLI Example:
 
@@ -126,12 +129,16 @@ def read(datasource, path, key=None):
 
         salt '*' dscl.read . /Users/admin naprivs
     '''
-    output = __salt__['cmd.run'](
+    result = __salt__['cmd.run_all'](
         '/usr/bin/dscl {0} read {1} {2}'.format(datasource, path, key)
     )
 
-    if re.search('No such key', output):
-        log.warning('Attempted to read a record attribute that doesnt exist: {0}'.format(key))
-        return None
+    if result['retcode'] != 0:
+        log.warning('Attempted to read a record that doesnt exist: {0}'.format(path))
+        return False
 
-    return {parts[0]:parts[1] for parts in [line.split(': ') for line in output.splitlines()]}
+    if re.search('No such key', result['stderr']):
+        log.warning('Attempted to read a record attribute that doesnt exist: {0}'.format(key))
+        return {}
+
+    return {parts[0]:parts[1] for parts in [line.split(': ') for line in result['stdout'].splitlines()]}

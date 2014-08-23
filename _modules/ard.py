@@ -22,8 +22,7 @@ _PATHS = {
     'trigger':'/private/etc/RemoteManagement.launchd'
 }
 
-# managedmac author has this to say:
-
+# Directly lifted from managedmac:
 # Privileges are are represented using a signed integer stored as a
 # string. Yes, confusing. Use this Bit map chart to figure it out:
 #
@@ -42,6 +41,10 @@ _PATHS = {
 #    FFFFFFFF80000002 -2147483646 control and observe don't show when observing
 #    FFFFFFFFC00000FF -1073741569 all enabled
 #    FFFFFFFF80000000 -2147483648 all disabled
+
+# 0xC0 - User is not notified of control
+# 0x80 - User IS notified of control
+_NAPRIV_HIDDEN_MASK = int('0x00000000FF000000',16)
 
 _NAPRIV = int('0xFFFFFFFFC0000000',16)
 _NAPRIV_NO_OBSERVE = int('0xFFFFFFFF80000000',16)
@@ -110,8 +113,12 @@ def _privs_list(naprivs):
     '''
     Convert a signed integer representation of remote management privileges to
     a list of short words indicating the permissions set.
+
+    If the 'all' privilege is set, only returns 'all'
     '''
-    return [k for k,v in _NAPRIVS.iteritems() if naprivs & v == v]
+    privs = [k for k,v in _NAPRIVS.iteritems() if naprivs & v == v]
+    return ['all'] if 'all' in privs else privs
+
 
 def _validate_user(name):
     output = __salt__['cmd.run']('/usr/bin/dscl /Search -search /Users name "{}"'.format(name))
@@ -290,7 +297,8 @@ def users(human=True):
     if not human:
         return privs
 
-    return {user:_privs_list(int(privs)) for user, privs in privs.iteritems()}
+    privs_human = {user:_privs_list(int(privs)) for user, privs in privs.iteritems()}
+    return privs_human
 
 
 def set_user_privs(username, privileges):

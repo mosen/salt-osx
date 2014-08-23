@@ -3,13 +3,13 @@ Property List Module
 ====================
 
 The Property List module reads and writes .plist files which are used
-heavily throughout OSX.
+heavily throughout OSX using the PyObjC bridge for NSPropertyListSerialization
 
-Several parts of this code have been taken/modified from Greg Neagle's
-FoundationPlist class which is a part of the munki tools project.
+Several parts of this code have been taken/modified from gneagle's
+FoundationPlist class which is a part of the munki project.
 
 Remember that changes may not be effected immediately, and that you should try to avoid modifying the plist
-of any running process.
+of any running process (If using NSPropertyListSerialization).
 
 TODO:
 
@@ -82,9 +82,6 @@ def _readPlist(filepath):
         return None
 
     plistData = NSData.dataWithContentsOfFile_(filepath)
-    # dataObject, plistFormat, error = \
-    #     NSPropertyListSerialization.propertyListWithData_options_format_error_(
-    #         plistData, NSPropertyListMutableContainers, None, None)
 
     dataObject, plistFormat, error = \
         NSPropertyListSerialization.propertyListFromData_mutabilityOption_format_errorDescription_(

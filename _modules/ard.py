@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
 '''
 manage the "remote management" service via kickstart and property lists.
+
+:maintainer:    Mosen <mosen@github.com>
+:maturity:      beta
+:depends:       plist
+:platform:      darwin
 '''
 # This would not have been possible without the hard work from dayglojesus/managedmac
 
@@ -65,8 +70,8 @@ _NAPRIV_OPEN_QUIT_APPS = 1 << 5
 _NAPRIV_CHANGE_SETTINGS = 1 << 6
 _NAPRIV_RESTART_SHUTDOWN = 1 << 7
 _NAPRIV_ALL = _NAPRIV_TEXT_MESSAGES | _NAPRIV_CONTROL_OBSERVE | _NAPRIV_COPY_ITEMS \
-              | _NAPRIV_DELETE_REPLACE_ITEMS | _NAPRIV_GENERATE_REPORTS | _NAPRIV_OPEN_QUIT_APPS | _NAPRIV_CHANGE_SETTINGS \
-              | _NAPRIV_RESTART_SHUTDOWN
+              | _NAPRIV_DELETE_REPLACE_ITEMS | _NAPRIV_GENERATE_REPORTS | _NAPRIV_OPEN_QUIT_APPS | \
+              _NAPRIV_CHANGE_SETTINGS | _NAPRIV_RESTART_SHUTDOWN
 
 _NAPRIVS = {
     'text': _NAPRIV_TEXT_MESSAGES,

@@ -33,9 +33,10 @@ master or masterless setup.
 
 Manage the options shown in the **Remote Management** preference pane.
 
-BUGS:
-- all users privileges not idempotent/not always written correctly.
-- allowed directory groups not detecting changes in group list.
+TODO:
+    - service enabled + no access not possible to declare in state.
+    - needs code cleanup
+    - 
 
 ### bluetooth ###
 

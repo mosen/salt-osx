@@ -12,8 +12,10 @@ log = logging.getLogger(__name__)
 
 __virtualname__ = 'dscl'
 
+
 def __virtual__():
     return __virtualname__ if salt.utils.is_darwin() else False
+
 
 def search(datasource, path, key, value):
     '''
@@ -46,7 +48,8 @@ def search(datasource, path, key, value):
     if len(output) == 0:
         return None
 
-    return { 'matches': [line.split("\t\t")[0] for line in output if re.search("\w\t\t\w", line)] }
+    return {'matches': [line.split("\t\t")[0] for line in output if re.search("\w\t\t\w", line)]}
+
 
 def list(datasource, path, key=''):
     '''
@@ -75,7 +78,9 @@ def list(datasource, path, key=''):
         '/usr/bin/dscl {0} list {1} {2}'.format(datasource, path, key)
     )
 
-    return {matches.group(1):matches.group(2) for matches in [re.match('(\S*)\s*(.*)', line) for line in output.splitlines()]}
+    return {matches.group(1): matches.group(2) for matches in
+            [re.match('(\S*)\s*(.*)', line) for line in output.splitlines()]}
+
 
 def create(datasource, path, key, value):
     '''
@@ -105,6 +110,7 @@ def create(datasource, path, key, value):
     )
 
     return True if status == 0 else False
+
 
 def read(datasource, path, key=None):
     '''
@@ -141,4 +147,4 @@ def read(datasource, path, key=None):
         log.warning('Attempted to read a record attribute that doesnt exist: {0}'.format(key))
         return {}
 
-    return {parts[0]:parts[1] for parts in [line.split(': ') for line in result['stdout'].splitlines()]}
+    return {parts[0]: parts[1] for parts in [line.split(': ') for line in result['stdout'].splitlines()]}

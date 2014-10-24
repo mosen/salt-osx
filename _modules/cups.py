@@ -113,7 +113,7 @@ def add(name, description, uri, **kwargs):
         salt '*' cups.add example_printer 'Example Printer Description' 'lpd://10.0.0.1' model='drv:///sample.drv/generic.ppd' location='Office Corner'
     '''
     result = {}
-    cmd = 'lpadmin -p {0} -D "{1}" -v "{2}"'.format(name, description, uri)
+    cmd = 'lpadmin -p {0} -E -D "{1}" -v "{2}"'.format(name, description, uri)
 
     # Can't combine model and interface/ppd
     if 'model' in kwargs:
@@ -185,3 +185,40 @@ def uris():
         salt '*' cups.uris
     '''
     return __salt__['cmd.run_stdout']('lpinfo -v')
+
+
+def options(name):
+    '''
+    Parse model specific options for the given printer.
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' cups.options Printer_Name
+    '''
+    options_long = __salt__['cmd.run']('lpoptions -p {} -l'.format(name)).splitlines()
+
+    options = list()
+
+    for line in options_long:
+        option = {}
+        matches = re.match(r"([^/]+)/([^:]+):\s(.*)", line)
+        option['name'] = matches.group(1)
+        option['description'] = matches.group(2)
+        option['values'] = list()
+        option['selected'] = None
+
+        values = matches.group(3)
+
+        for v in values.split():
+            if v[0] == '*':
+                option['selected'] = v[1:]
+                option['values'].append(v[1:])
+            else:
+                option['values'].append(v)
+
+        options.append(option)
+
+    return options
+

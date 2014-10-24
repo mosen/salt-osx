@@ -1,7 +1,29 @@
-"""
-Add, modify and remove printers.
-"""
+# -*- coding: utf-8 -*-
+'''
+ensure printers are present or absent, using the CUPS system.
+
+ .. code-block:: yaml
+
+    Printer_Name:
+      printer:
+        - present
+        - description: 'Printer Description'
+        - uri: 'lpd://10.0.0.1/queue'
+        - location: 'Downstairs'
+        - model: 'drv:///sample.drv/generic.ppd'
+        - options:
+            - PageSize: A4
+
+    Remove_Printer_Name:
+      printer:
+        - absent
+
+TODO: No support for enable/disable
+'''
+import logging
 import salt.utils
+
+log = logging.getLogger(__name__)
 
 __virtualname__ = 'printer'
 
@@ -48,23 +70,84 @@ def present(name, description, uri, **kwargs):
     '''
     ret = {'name': name, 'changes': {}, 'result': False, 'comment': ''}
     changes = {'old': {}, 'new': {}}
-    # Note: cannot determine the model, interface script, or ppd from lpstat output. These are excluded.
-    compare = ['description', 'uri', 'location', 'options']
+    create = False
+    printerkwargs = {}
+
+    for kwarg in kwargs.keys():
+        if kwarg == 'model':
+            printerkwargs['model'] = kwargs[kwarg]
+            if 'interface' in kwargs:
+                ret['result'] = False
+                ret['comment'] = 'You cannot use both a model and interface argument. They are exclusive.'
+                return ret
+            if 'ppd' in kwargs:
+                ret['result'] = False
+                ret['comment'] = 'You cannot use both a model and a ppd argument. They are exclusive.'
+                return ret
+        elif kwarg == 'interface':
+            if 'ppd' in kwargs:
+                ret['result'] = False
+                ret['comment'] = 'You cannot use both an interface and ppd argument. They are exclusive.'
+                return ret
+            printerkwargs['interface'] = kwargs[kwarg]
+        elif kwarg in ('__id__', 'fun', 'state', '__env__', '__sls__',
+                       'order', 'watch', 'watch_in', 'require', 'require_in',
+                       'prereq', 'prereq_in'):
+            pass
+        else:
+            printerkwargs[kwarg] = kwargs[kwarg]
+
+    printerkwargs['description'] = description
+    printerkwargs['uri'] = uri
 
     printers = __salt__['cups.printers']()
 
     if name not in printers:
-        added = __salt__['cups.add'](name, description, uri, kwargs)
-        if added:
-            changes['new'] = added
-        else:
-            # Error: failed to add
-            ret['comment'] = 'Error adding printer'
-            return ret
+        '''Just add'''
+        changes['new'][name] = printerkwargs
+        create = True
     else:
-        # TODO: Unfinished
-        raise Exception()
+        '''Modify only changed attributes'''
+        current_printer = printers[name]
+        changes['new'][name] = {}
 
+        for k, v in printerkwargs.iteritems():
+            if k not in current_printer:
+                changes['new'][name][k] = v
+            elif current_printer[k] != v:
+                changes['new'][name][k] = v
+
+    if __opts__['test']:
+        if len(changes['new'][name].keys()) == 0:
+            ret['result'] = None
+            ret['comment'] = 'No changes required'
+        else:
+            ret['changes'] = changes
+            ret['result'] = None
+
+            if create:
+                ret['comment'] = 'Printer would have been created.'
+            else:
+                ret['comment'] = 'Printer would have been modified.'
+    else:
+        if len(changes['new'][name].keys()) == 0:
+            ret['result'] = None
+            ret['comment'] = 'No changes required'
+        else:
+            # Remove these after comparison has been made with cups.printers, there should be a cleaner way to do this.
+            changes['new'][name].pop('uri', None)
+            changes['new'][name].pop('description', None)
+
+            success = __salt__['cups.add'](name, description, uri, **changes['new'][name])
+            if success:
+                ret['result'] = True
+                ret['comment'] = 'Printer successfully {}.'.format('created' if create else 'modified')
+                ret['changes'] = changes
+            else:
+                ret['result'] = False
+                ret['comment'] = 'Failed to {} printer.'.format('create' if create else 'modify')
+
+    return ret
 
 
 def absent(name):
@@ -76,3 +159,25 @@ def absent(name):
     '''
     ret = {'name': name, 'changes': {}, 'result': False, 'comment': ''}
     changes = {'old': {}, 'new': {}}
+
+    printers = __salt__['cups.printers']()
+
+    if name not in printers:
+        ret['result'] = None
+        ret['comment'] = 'No changes required'
+        return ret
+
+    changes['old'] = printers[name]
+
+    if __opts__['test']:
+        ret['result'] = None
+        ret['comment'] = 'Printer {} would have been removed.'.format(name)
+    else:
+        success = __salt__['cups.remove'](name)
+        if success:
+            ret['result'] = True
+            ret['comment'] = 'Printer successfully removed.'
+        else:
+            ret['comment'] = 'Failed to remove printer.'
+
+    return ret

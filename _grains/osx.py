@@ -14,6 +14,7 @@ log = logging.getLogger(__name__)
 
 __virtualname__ = 'mac'
 
+
 def __virtual__():
     if salt.utils.is_darwin():
         return __virtualname__
@@ -27,6 +28,15 @@ cmdmod = {
     # 'cmd.retcode': salt.modules.cmdmod._retcode_quiet,
     'cmd.run_all': salt.modules.cmdmod._run_all_quiet
 }
+
+def gatekeeper_enabled():
+    """Find out whether Gatekeeper is enabled, via spctl."""
+    output = cmdmod['cmd.run']('spctl --status')
+    if re.search(r"enabled", output):
+        return {'gatekeeper_enabled': True}
+    else:
+        return {'gatekeeper_enabled': False}
+
 
 def filevault_enabled():
     """Find out whether FileVault is enabled, via fdesetup.
@@ -51,14 +61,15 @@ def java_vendor():
     :return: 'Oracle' or 'Apple'
     :rtype: string
     """
-    bundle_id = cmdmod['cmd.run']('/usr/bin/defaults read "/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Info" CFBundleIdentifier 2>/dev/null')
+    bundle_id = cmdmod['cmd.run'](
+        '/usr/bin/defaults read "/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Info" CFBundleIdentifier 2>/dev/null')
 
     if bundle_id == "com.oracle.java.JavaAppletPlugin":
         vendor = 'Oracle'
     elif bundle_id == "com.apple.java.JavaAppletPlugin":
         vendor = 'Apple'
 
-    return {'mac_java_vendor':vendor} if vendor else None
+    return {'mac_java_vendor': vendor} if vendor else None
 
 
 def java_version():
@@ -67,15 +78,17 @@ def java_version():
     :return: The current Java version
     :rtype: string
     """
-    bundle_version = cmdmod['cmd.run']('/usr/bin/defaults read "/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Info" CFBundleVersion 2>/dev/null')
+    bundle_version = cmdmod['cmd.run'](
+        '/usr/bin/defaults read "/Library/Internet Plug-Ins/JavaAppletPlugin.plugin/Contents/Info" CFBundleVersion 2>/dev/null')
 
-    return {'mac_java_version':bundle_version} if bundle_version else None
+    return {'mac_java_version': bundle_version} if bundle_version else None
 
 
 def flash_version():
     """Get the current version of the Flash internet plug-in"""
-    output = cmdmod['cmd.run']("/usr/bin/defaults read '/Library/Internet\ Plug-Ins/Flash Player.plugin/Contents/Info' CFBundleVersion 2>/dev/null")
-    return {'mac_flash_version':output} if output else None
+    output = cmdmod['cmd.run'](
+        "/usr/bin/defaults read '/Library/Internet\ Plug-Ins/Flash Player.plugin/Contents/Info' CFBundleVersion 2>/dev/null")
+    return {'mac_flash_version': output} if output else None
 
 
 def admin_users():
@@ -88,7 +101,7 @@ def admin_users():
     log.debug("dscl output for admin users follows: {0}".format(output))
     parts = output.split(':', 1)
     members = [member for member in parts[1].split()]
-    return {'mac_admin_users':members}
+    return {'mac_admin_users': members}
 
 
 def mac_laptop():
@@ -99,7 +112,7 @@ def mac_laptop():
     """
     model = cmdmod['cmd.run']("sysctl hw.model |awk '{ print $2 }'")
     hardware_type = 'mac_laptop' if re.search('Book', model) else 'mac_desktop'
-    return {'mac_laptop':hardware_type}
+    return {'mac_laptop': hardware_type}
 
 
 def mac_current_user():
@@ -109,10 +122,10 @@ def mac_current_user():
     :rype: string
     """
     output = cmdmod['cmd.run']("/bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }'")
-    return {'mac_current_user':output}
+    return {'mac_current_user': output}
 
 
 def mac_timezone():
     """Determine system timezone"""
     output = cmdmod['cmd.run']("/usr/sbin/systemsetup -gettimezone")
-    return {'mac_timezone':output[11:]}
+    return {'mac_timezone': output[11:]}

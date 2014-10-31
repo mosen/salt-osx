@@ -10,7 +10,6 @@
 import logging
 import salt.utils
 import salt.modules.cmdmod
-# import logging
 
 log = logging.getLogger(__name__)
 

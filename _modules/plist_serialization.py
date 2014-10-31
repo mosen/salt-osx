@@ -99,23 +99,6 @@ def _readPlist(filepath):
         return dataObject
 
 
-def _readPlistFromString(data):
-    '''Read a plist data from a string. Return the root object.'''
-    plistData = buffer(data)
-    dataObject, plistFormat, error = \
-        NSPropertyListSerialization.propertyListFromData_mutabilityOption_format_errorDescription_(
-            plistData, NSPropertyListMutableContainers, None, None)
-    if error:
-        error = error.encode('ascii', 'ignore')
-
-        import traceback
-
-        log.debug('Error parsing plist from string')
-        log.debug(error)
-        raise NSPropertyListSerializationException(error)
-    else:
-        return dataObject
-
 
 def _writePlist(dataObject, filepath):
     '''
@@ -304,6 +287,27 @@ def _removeObjectForKeyList(dict, keys):
         # return
         return dict.removeObjectForKey_(key)
 
+
+def parse_string(data):
+    '''
+    Take a property list as a string and return a python native representation.
+
+    Used by other modules in salt-osx
+    '''
+    plistData = buffer(data)
+    dataObject, plistFormat, error = \
+        NSPropertyListSerialization.propertyListFromData_mutabilityOption_format_errorDescription_(
+            plistData, NSPropertyListMutableContainers, None, None)
+    if error:
+        error = error.encode('ascii', 'ignore')
+
+        import traceback
+
+        log.debug('Error parsing plist from string')
+        log.debug(error)
+        raise NSPropertyListSerializationException(error)
+    else:
+        return dataObject
 
 def read_key(path, key=''):
     '''

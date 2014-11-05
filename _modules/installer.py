@@ -123,21 +123,35 @@ def _install_pkg(pkgpath, choicesXMLpath=None, suppressBundleRelocation=False,
 
 
 def install(name=None,
-            sources=None,
+            pkgid=None,
+            choices=None,
+            no_relocation=False,
+            environment=None,
             **kwargs):
     '''
     Install the package using the OSX ``installer`` tool.
 
     name
-        This argument is mostly ignored on OSX, since there is no key identifier for a package.
-        Typically you could use the bundle id, but this is not always reliable.
+        The file system location of the installer package to install.
 
         CLI Example:
 
         .. code-block:: bash
 
-            salt '*' pkg.install <package name>
+            salt '*' pkg.install </path/to/package.pkg or salt://package.pkg>
 
+    pkgids
+        A list of bundle IDs and their versions that would be installed by this package.
+        Used to detect whether the package has already been installed or not.
+
+    choices
+        A dictionary that describes choice changes
+
+    no_relocation
+        Whether to suppress bundle relocation
+
+    environment
+        A dictionary of environment variables used when the installer is invoked.
 
     Multiple Package Installation Options:
 
@@ -159,6 +173,46 @@ def install(name=None,
     '''
     # loop through sources, run _install
 
+def _listReceipts():
+    '''
+    Query the receipts database for installed packages.
+    '''
+    result = __salt__['cmd.run']('/usr/sbin/pkgutil --regexp --pkg-info-plist ".*"')
+    plist_strings = re.split(r'\n\n', result)
+    log.debug("%d strings" % len(plist_strings))
+    plists = [__salt__['plist.parse_string'](plist_string) for plist_string in plist_strings]
+    log.debug("%d plists" % len(plists))
+    packages = {plist.objectForKey_('pkgid'): plist.objectForKey_('pkg-version') for plist in plists}
+    return packages
+
+def _getBundlePackageInfo(bundlePath):
+    pass
+
+def _listOldReceipts():
+    '''
+    Parse old style receipts in /Library/Receipts for installed packages.
+
+    There may be multiple receipts for different installed versions of a package.
+    '''
+    receiptsdir = '/Library/Receipts'
+    packages = dict()
+
+    # if os.path.exists(receiptsdir):
+    #     bundles = [os.path.join(receiptsdir, dirname) for dirname in os.listdir(receiptsdir) if dirname.endswith('.pkg')]
+    #
+    #     for bundle in bundles:
+    #         info = _getBundlePackageInfo(bundle)
+    #         if len(info):
+    #             infoitem = info[0]
+    #             foundbundleid = infoitem['packageid']
+    #             foundvers = infoitem['version']
+    #             if foundbundleid not in packages:
+    #                 packages[foundbundleid] = foundvers
+    #             else:
+    #                 # compare version, if newer set dict val
+    #                 pass
+
+    return packages
 
 def list_pkgs(versions_as_list=False,
               **kwargs):
@@ -179,19 +233,19 @@ def list_pkgs(versions_as_list=False,
         salt '*' pkg.list_pkgs versions_as_list=True
     '''
     versions_as_list = salt.utils.is_true(versions_as_list)
+    # not yet implemented or not applicable
+    if any([salt.utils.is_true(kwargs.get(x))
+            for x in ('removed', 'purge_desired')]):
+        return {}
 
     ret = {'installed': {}}
-    result = __salt__['cmd.run']('/usr/sbin/pkgutil --regexp --pkg-info-plist ".*"')
-    plist_strings = re.split(r'\n\n', result)
-    log.debug("%d strings" % len(plist_strings))
-    plists = [__salt__['plist.parse_string'](plist_string) for plist_string in plist_strings]
-    log.debug("%d plists" % len(plists))
+    ret['installed'] = _listReceipts()
 
-    packages = {plist.objectForKey_('pkgid'): plist.objectForKey_('pkg-version') for plist in plists}
+    return ret
 
-    # Now check /Library/Receipts for older packages?
-    receiptsdir = '/Library/Receipts'
-    if os.path.exists(receiptsdir):
-        pass
+def verify():
+    pass
 
-    return packages
+def hold():
+    pass
+

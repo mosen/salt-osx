@@ -318,9 +318,10 @@ def user_privs(username, human=True):
     '''
     privs = __salt__['dscl.read']('.', '/Users/{0}'.format(username), 'naprivs')
 
-    if privs is False or privs is None:
-        return privs
+    if privs is False or privs is None or len(privs.values()) == 0:
+        return None
 
+    log.debug('Got naprivs: {}'.format(privs))
 
     privs_long = int(privs.values()[0])
 

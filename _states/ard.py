@@ -107,7 +107,7 @@ def managed(name, enabled=True, **kwargs):
     service_is_enabled = __salt__['ard.active']()
     all_users_privs = __salt__['ard.naprivs_list'](current_plist['ARD_AllLocalUsersPrivs'])
     vnc_password = __salt__['ard.vncpw']()
-    directory_groups = current_plist['DirectoryGroupList']
+    directory_groups = current_plist['DirectoryGroupList'] if 'DirectoryGroupList' in current_plist else list()
 
     if enabled != service_is_enabled:
         changes['old']['enabled'] = service_is_enabled

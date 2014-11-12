@@ -72,6 +72,7 @@ def present(name, description, uri, **kwargs):
     changes = {'old': {}, 'new': {}}
     create = False
     printerkwargs = {}
+    ignored_updates = ['model', 'interface', 'ppd']  # These keys cant be determined after create time.
 
     for kwarg in kwargs.keys():
         if kwarg == 'model':
@@ -112,6 +113,8 @@ def present(name, description, uri, **kwargs):
         changes['new'][name] = {}
 
         for k, v in printerkwargs.iteritems():
+            if k in ignored_updates:
+                continue
             if k not in current_printer:
                 changes['new'][name][k] = v
             elif current_printer[k] != v:

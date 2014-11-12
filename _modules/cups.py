@@ -39,7 +39,7 @@ def printers():
     name = None
 
     for line in printers_long:
-        if re.search(r"printer\s", line):
+        if re.search(r"^printer\s", line):
             if current is not None:
                 printers[name] = current
 

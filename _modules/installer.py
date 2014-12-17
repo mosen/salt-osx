@@ -10,7 +10,9 @@ Install packages using the osx 'installer' tool.
 Large amounts of this module are lifted from gneagle's excellent munki tools project. Without which the mac admin
 community may not exist in its current form.
 
-This is not munki, but it should be enough to bootstrap a mac client at least, to the point where munki can take over.
+This is not munki, and it does not attempt to cover all of the munki feature set. Unfortunately this means that
+this execution module will only get you so far. I will not support adobe packages or packages that require installs
+items.
 
 Support for pkg.installed:
 - name: not used to identify the package because using the pkgid would not always give us the correct result.
@@ -131,6 +133,9 @@ def install(name=None,
     '''
     Install the package using the OSX ``installer`` tool.
 
+    It can be necessary to provide receipt or installs items, as per a munki pkginfo file,
+    in order to ensure that salt can determine whether the item has already been installed.
+
     name
         The file system location of the installer package to install.
 
@@ -173,7 +178,7 @@ def install(name=None,
     '''
     # loop through sources, run _install
 
-def _listReceipts():
+def list_receipts():
     '''
     Query the receipts database for installed packages.
     '''
@@ -188,14 +193,17 @@ def _listReceipts():
 def _getBundlePackageInfo(bundlePath):
     pass
 
-def _listOldReceipts():
+def list_old():
     '''
     Parse old style receipts in /Library/Receipts for installed packages.
 
     There may be multiple receipts for different installed versions of a package.
     '''
-    receiptsdir = '/Library/Receipts'
+    receipts_path = '/Library/Receipts'
     packages = dict()
+
+    if os.path.exists(receipts_path):
+        pass
 
     # if os.path.exists(receiptsdir):
     #     bundles = [os.path.join(receiptsdir, dirname) for dirname in os.listdir(receiptsdir) if dirname.endswith('.pkg')]
@@ -212,7 +220,7 @@ def _listOldReceipts():
     #                 # compare version, if newer set dict val
     #                 pass
 
-    return packages
+    #return packages
 
 def list_pkgs(versions_as_list=False,
               **kwargs):

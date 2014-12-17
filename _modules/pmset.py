@@ -10,6 +10,16 @@ import salt.utils
 
 log = logging.getLogger(__name__)
 
+BOOLEAN_SETTINGS = ['womp', 'ring', 'autorestart', 'lidwake', 'acwake', 'lessbright', 'halfdim', 'sms',
+                    'destroyfvkeyonstandby', 'autopoweroff']
+
+__virtualname__ = 'pmset'
+
+
+def __virtual__():
+    return __virtualname__ if salt.utils.is_darwin() else False
+
+
 def list_settings():
     '''
     Get list of current settings for all power sources.
@@ -42,9 +52,12 @@ def list_settings():
                 current = dict()
             source = "battery"
         else:
-            property = split(strip(line))
-            if len(property) == 2:
-                current[property[0]] = property[1]
+            kv = split(strip(line))
+            if len(kv) == 2:
+                if kv[0] in BOOLEAN_SETTINGS:
+                    current[kv[0]] = True if kv[1] == "1" else False
+                else:
+                    current[kv[0]] = kv[1]
 
     if current != dict():
         settings[source] = current

@@ -26,17 +26,6 @@ def __virtual__():
     return 'plist' if salt.utils.is_darwin() else False
 
 
-# def mod_init(low):
-#     '''
-#     Gather all system power settings
-#     '''
-#     if low['fun'] == 'settings':
-#
-#         return True
-#     else:
-#         return False
-
-
 def settings(name, **kwargs):
     '''
     Enforce power management settings
@@ -65,6 +54,12 @@ def settings(name, **kwargs):
     else:
         if changes['new']:
             success = __salt__['pmset.set_settings'](name, pending)
+            ret['result'] = success
+
+            if success:
+                ret['comment'] = 'Power settings applied successfully'
+            else:
+                ret['comment'] = 'Could not apply power settings'
         else:
             ret['result'] = None
             ret['comment'] = 'No changes required'

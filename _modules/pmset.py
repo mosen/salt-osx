@@ -5,16 +5,16 @@ Get and set power management settings for different power sources on Mac OS X us
 
 import logging
 import re
-from string import strip, split, join
+from string import strip, split, join, lower
 import salt.utils
 import salt.exceptions
 
 log = logging.getLogger(__name__)
 
-POWER_SOURCES = ['ac', 'battery']  # ups
+POWER_SOURCES = ['ac', 'battery']  # ups not supported
 POWER_SWITCHES = {'ac': '-c', 'battery': '-b'}
 BOOLEAN_SETTINGS = ['womp', 'ring', 'autorestart', 'lidwake', 'acwake', 'lessbright', 'halfdim', 'sms',
-                    'destroyfvkeyonstandby', 'autopoweroff']
+                    'ttyskeepawake', 'destroyfvkeyonstandby', 'autopoweroff']
 VALID_SETTINGS = ['displaysleep', 'disksleep', 'sleep', 'womp', 'ring', 'autorestart', 'lidwake', 'acwake',
                   'lessbright', 'halfdim', 'sms', 'ttyskeepawake', 'destroyfvkeyonstandby', 'autopoweroff',
                   'autopoweroffdelay']
@@ -134,12 +134,12 @@ def set_settings(name, **kwargs):
             'Invalid power source given: {}'.format(name)
         )
 
-    valid_settings = {k: v for k, v in kwargs.iteritems() if k in VALID_SETTINGS}
+    valid_settings = {k: str(v) for k, v in kwargs.iteritems() if k in VALID_SETTINGS}
     normal_settings = {}
 
     for k, v in valid_settings.iteritems():
         if k in BOOLEAN_SETTINGS:
-            normal_settings[k] = '1' if v else '0'
+            normal_settings[k] = '1' if lower(v) == 'true' or v == '1' else '0'
         else:
             normal_settings[k] = v
 

@@ -68,3 +68,7 @@ General Roadmap Notes:
     + everything and anything that relates to profile installation
 
 - Need to support configuration profile management including generation and remote enrollment.
+
+## Testing ##
+
+Requires the `SaltTesting` package to execute unit and integration tests.

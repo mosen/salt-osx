@@ -4,9 +4,9 @@
 ac:
   power:
     - settings
-    - displaysleep: 0  # Number of minutes to sleep display, zero always means never sleep
+    - displaysleep: 10  # Number of minutes to sleep display, zero always means never sleep
     - disksleep: 0  # Disk spin down
-    - sleep: 0  # System sleep
+    - sleep: 60  # System sleep
     - womp: True  # Wake on ethernet magic packet
     - ring: False  # Wake on modem ring
     - autorestart: True  # Auto restart on power loss

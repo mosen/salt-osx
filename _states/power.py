@@ -65,6 +65,8 @@ def settings(name, **kwargs):
     else:
         if changes['new']:
             success = __salt__['pmset.set_settings'](name, pending)
+            ret['result'] = success
+            ret['comment'] = 'Power settings applied'
         else:
             ret['result'] = None
             ret['comment'] = 'No changes required'

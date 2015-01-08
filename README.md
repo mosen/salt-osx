@@ -1,22 +1,22 @@
 ## salt-osx ##
 
-Manage a mac fleet with SaltStack: Salt Modules/Grains/States for Mac OS X w/PyObjC. *Alpha Quality*
+SaltStack grains, modules, and states to manage Mac OS X.
 
-The motivation for this repository is to provide SaltStack modules that call into native Foundation/Cocoa API via PyObjC.
-This would theoretically give you more control over configuration than scripting alone.
+The motivation for this repository is to provide SaltStack modules that call native API through PyObjC, in addition
+to command line tools. This gives a greater level of control than executing commands by themselves, which is what
+puppet, chef etc. are doing.
 
-There are also some modules that use command line tools but expand on the support provided by salt.
-
-The modules are constantly at different levels of maturity.
+*WARNING:* A lot of modules are in a very early state of development, check the list below to see which are usable.
 
 ## Installation ##
 
-**VERY IMPORTANT:** You must disable multiprocessing on the Mac OS X minions for native modules to work. This is
+**VERY IMPORTANT:** You must disable multiprocessing on the Mac OS X minions for CoreFoundation modules to work. This is
 because salt-minion threading does not work **at all** with CoreFoundation API. If you do not do this, the minion will 
 crash without warning when trying to execute some modules. This is not the case with `salt-call` as it does not seem to 
-use multiple threads.
+use multiple threads. Modules using the CoreFoundation API are listed below, marked with **CF**.
 
-You must edit your minion configuration file, usually `/etc/salt/minion` to include the following line:
+If you do use any of these modules you must edit your minion configuration file,
+usually `/etc/salt/minion` to include the following line:
 
     multiprocessing: False
     
@@ -37,7 +37,7 @@ master or masterless setup.
 ## Execution Modules ##
 
 - [ard](docs/markdown/ard.md) **mature** Remote Management service configuration.
-- [authorization](docs/markdown/authorization.md) *broken* Utility module for granting authorization to CoreFoundation API.
+- [authorization](docs/markdown/authorization.md) **CF** *broken* Utility module for granting authorization to CoreFoundation API.
 - [bluetooth](docs/markdown/bluetooth.md) **mature** Manage bluetooth.
 - [cups](docs/markdown/cups.md) **beta** Configure printers
 - [desktop](docs/markdown/desktop.md) *broken* Interact with and manage the current users session.

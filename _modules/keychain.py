@@ -10,6 +10,7 @@ Straight adaptation from pudquick's keymaster.py
 """
 
 import logging
+import salt.exceptions
 
 log = logging.getLogger(__name__)
 
@@ -46,6 +47,83 @@ def __virtual__():
     return __virtualname__
 
 
+def _secErrorMessage(errCode):
+    '''
+    Retrieve a useful error message, given a return code from the Security framework
+    :param errCode:
+    :return: string
+    '''
+    if errCode == -25291:
+        return "No trust results are available."
+    elif errCode == -25292:
+        return "Read only error."
+    elif errCode == -25293:
+        return "Authorization/Authentication failed."
+    elif errCode == -25294:
+        return "The keychain does not exist."
+    elif errCode == -25295:
+        return "The keychain is not valid."
+    elif errCode == -25296:
+        return "A keychain with the same name already exists."
+    elif errCode == -25297:
+        return "More than one callback of the same name exists."
+    elif errCode == -25298:
+        return "The callback is not valid."
+    elif errCode == -25299:
+        return "The item already exists."
+    elif errCode == -25300:
+        return "The item cannot be found."
+    elif errCode == -25301:
+        return "The buffer is too small."
+    elif errCode == -25302:
+        return "The data is too large."
+    elif errCode == -25303:
+        return "The attribute does not exist."
+    elif errCode == -25304:
+        return "The item reference is invalid."
+    elif errCode == -25305:
+        return "The search reference is invalid."
+    elif errCode == -25306:
+        return "The keychain item class does not exist."
+    elif errCode == -25307:
+        return "A default keychain does not exist."
+    elif errCode == -25308:
+        return "Interaction is not allowed with the Security Server."
+    elif errCode == -25309:
+        return "The attribute is read only."
+    elif errCode == -25310:
+        return "The version is incorrect."
+    elif errCode == -25311:
+        return "The key size is not allowed."
+    elif errCode == -25312:
+        return "There is no storage module available."
+    elif errCode == -25313:
+        return "There is no certificate module available."
+    elif errCode == -25314:
+        return "There is no policy module available."
+    elif errCode == -25315:
+        return "User interaction is required."
+    elif errCode == -25316:
+        return "The data is not available."
+    elif errCode == -25317:
+        return "The data is not modifiable."
+    elif errCode == -25318:
+        return "The attempt to create a certificate chain failed."
+
+    elif errCode == -25240:
+        return "The access control list is not in standard simple form."
+    elif errCode == -25241:
+        return "The policy specified cannot be found."
+    elif errCode == -25242:
+        return "The trust setting is invalid."
+    elif errCode == -25243:
+        return "The specified item has no access control."
+    elif errCode == -25244:
+        return "errSecInvalidOwnerEdit (No description available)"
+    else:
+        return "No description available for error: {}".format(errCode)
+
+
 class OpaqueType(Structure):
     pass
 
@@ -76,6 +154,8 @@ kSecItemTypeUnknown = 0
 kSecKeySecurePassphrase = 2
 
 kSecTrustSettingsDomainUser = 0
+kSecTrustSettingsDomainAdmin = 1
+kSecTrustSettingsDomainSystem = 2  # System trust settings are read-only, even by root
 
 # Per SecKeychain.h
 kSecPreferencesDomainUser = 0
@@ -143,7 +223,7 @@ def _get_keychain_path(a_keychain):
 
 
 def _resolve_keychain_name(keychain_name):
-    # Basically you open a reference and then resolve the path OS X is looking for it at
+    """Get a keychains full path given only its short name"""
     keychainRef = OpaqueTypeRef()
     result = Security.SecKeychainOpen(keychain_name, byref(keychainRef))
     if not keychainRef:
@@ -156,267 +236,98 @@ def _resolve_keychain_name(keychain_name):
     return keychain_path
 
 
-def _list_keychains(kDomain):
-    """List keychain paths for the given domain"""
-    keychain_paths = []
-    search_list = OpaqueTypeRef()
-    log.info('Looking up keychain search list from Security framework')
-    # Look up our list of keychain paths in the user domain, pass the results back in search_list
-    result = Security.SecKeychainCopyDomainSearchList(kDomain, byref(search_list))
-    # Return code is zero on success
-    if (result != 0):
-        log.error('Failed to get keychain search list, no reason given')
-        raise Exception('Error: Could not get keychain search list for some reason')
+def set_settings(keychain, sleep_lock=False, interval_lock=False, interval_time=2147483647):
+    '''
+    Set keychain settings
 
-    # SecKeychainCopyDomainSearchList is pretty gross. It can return a single SecKeychainRef
-    # ... OR it can return a CFArray of them. So you have to check what you're getting.
-    if CFoundation.CFGetTypeID(search_list) == Security.SecKeychainGetTypeID():
-        # It's a SecKeychain, just get the path value directly
-        keychain_paths.append(_get_keychain_path(search_list))
-    elif CFoundation.CFGetTypeID(search_list) == CFoundation.CFArrayGetTypeID():
-        # It's a CFArray of SecKeychains, gotta loop
-        count = CFoundation.CFArrayGetCount(search_list)
-        for i in range(count):
-            # Work with the items one at a time
-            a_keychain = CFArrayGetValueAtIndex(search_list, i)
-            keychain_paths.append(_get_keychain_path(a_keychain))
-    return keychain_paths
+    keychain
+        The keychain, which may be a short name or the full path to the keychain
 
+    sleep_lock
+        True or false indicating whether the keychain should be locked on sleep or not
 
-def _keychain_present_in_search(keychain_name):
-    # In the user domain
-    return _resolve_keychain_name(keychain_name) in _list_keychains(kSecPreferencesDomainUser)
+    interval_lock
+        True or false indicating whether the keychain should be locked after some interval or not
 
+    interval_time
+        The number of seconds before the keychain will be locked automatically, if interval_lock is True.
+        If you set this to anything other than the default, it implies that interval_lock is True.
 
-def _set_keychain_search(keychain_list):
-    # In the user domain
-    # Note: SecKeychainOpen, by design, does not fail for keychain paths that don't exist.
-    # Keychains can be kept on smartcard devices that fall under the 'dynamic' domain
-    # in that they should be part of the search path, but aren't guaranteed to always be there.
-    # See: http://lists.apple.com/archives/apple-cdsa/2006/Feb/msg00063.html
-    # Also: Non-absolute paths are considered to be located (by SecKeychainOpen) in the
-    # ~/Library/Keychains path. This isn't really well documented by Apple.
-    problem = False
-    if not keychain_list:
-        # Need to create a blank list and set our search path to it.
-        search_arrayRef = CFArrayCreate(None, None, 0, CFoundation.kCFTypeArrayCallBacks)
-    else:
-        # One or more items. Need to create an array of them
-        search_arrayRef = CFArrayCreateMutable(None, 0, CFoundation.kCFTypeArrayCallBacks)
-        for keychain_path in keychain_list:
-            # Set up a null pointer to store the ref at
-            keychainRef = OpaqueTypeRef()
-            result = Security.SecKeychainOpen(keychain_path, byref(keychainRef))
-            if (result != 0) or (not keychainRef):
-                # There was a problem, don't set any paths
-                problem = True
-            else:
-                # Append the keychain reference and release it
-                result = CFoundation.CFArrayAppendValue(search_arrayRef, keychainRef)
-                _safe_release(keychainRef)
-    # Attempt to set the search paths
-    result = Security.SecKeychainSetDomainSearchList(kSecPreferencesDomainUser, search_arrayRef)
-    _safe_release(search_arrayRef)
-    if (result != 0) or (problem):
-        raise Exception('Could not set the search path.', result)
+    CLI Example:
 
+    .. code-block:: bash
 
-def _add_keychain_search(keychain_name):
-    # In the user domain
-    if _keychain_present_in_search(keychain_name):
-        # It's already there, just return
-        return
-    # Otherwise, need to add it to the search path - it'll go at the end
-    new_path_list = _list_keychains()
-    # Remove it from the list
-    new_path_list.append(keychain_name)
-    # Set our search path to the new list
-    _set_keychain_search(new_path_list)
-
-
-def _remove_keychain_search(keychain_name):
-    # In the user domain, some safety to keep from removing a login keychain
-    if not _keychain_present_in_search(keychain_name):
-        # It's not in the search path currently, so just return
-        return
-    full_name = _resolve_keychain_name(keychain_name)
-    if (full_name == _resolve_keychain_name('login.keychain')):
-        # Safety feature - don't want to remove the login keychain accidentally
-        return
-    # Otherwise, it is in the search path - need to remove it
-    new_path_list = _list_keychains()
-    # Remove it from the list
-    new_path_list.remove(full_name)
-    # Set our search path to the new list
-    _set_keychain_search(new_path_list)
-
-
-def _check_keychain_status(keychain_name):
-    # In the user domain
-    # This is a higher level function the others rely on
-    # It checks availability of the keychain and, if available, current state
-    # Return value is a boolean tuple: (usable, unlocked, readable, writable)
-    status = [False, None, None, None]
-    # Get a keychain reference
-    keychainRef = OpaqueTypeRef()
-    result = Security.SecKeychainOpen(keychain_name, byref(keychainRef))
-    if not keychainRef:
-        # Weird, it couldn't resolve - this shouldn't happen
-        return status
-    # Check on the status of the keychain
-    status_mask = c_uint(0)
-    result = Security.SecKeychainGetStatus(keychainRef, byref(status_mask))
-    if result == 0:
-        # Keychain is available and usable - now to unpack status_mask
-        # Quick hack:
-        # 1 = unlocked
-        # 2 = readable
-        # 4 = writable
-        # Format the integer into a 3 digit binary string ('000','001', etc), map True for 1 & False for 0 per digit,
-        # then reverse the order (so they're in order: 1, 2, 4)
-        status = [True] + map(lambda x: x == '1', '{0:03b}'.format(status_mask.value))[::-1]
-    _safe_release(keychainRef)
-    return status
-
-
-def _keychain_available(keychain_name):
-    return _check_keychain_status(keychain_name)[0]
-
-
-def _keychain_unlocked(keychain_name):
-    # Hell, even the security tool won't tell you (directly) if a keychain is unlocked ...
-    exists, unlocked, readable, writable = _check_keychain_status(keychain_name)
-    if not exists:
-        raise Exception('Error: No such keychain')
-    return unlocked
-
-
-def _lock_keychain(keychain_name):
-    exists, unlocked, readable, writable = _check_keychain_status(keychain_name)
-    if not exists:
-        raise Exception('Error: No such keychain')
-    if not unlocked:
-        # Already locked, no need to lock it again
-        return
-    # Ok, time to lock it
-    keychainRef = OpaqueTypeRef()
-    result = Security.SecKeychainOpen(keychain_name, byref(keychainRef))
-    if not keychainRef:
-        # Weird, it couldn't resolve - this shouldn't happen
-        raise Exception("Error: Something odd happened that shouldn't.")
-    # Perform lock
-    result = Security.SecKeychainLock(keychainRef)
-    # Release the reference
-    _safe_release(keychainRef)
-    # Report on the result
-    if result != 0:
-        raise Exception('Error: Non-zero return on lock ..?', result)
-
-
-def _unlock_keychain(keychain_name, password):
-    # This is baby steps here. I'm not supporting, for instance, UTF-8 yet
-    exists, unlocked, readable, writable = _check_keychain_status(keychain_name)
-    if not exists:
-        raise Exception('Error: No such keychain')
-    if unlocked:
-        # Already unlocked, no need to lock it again
-        return
-    # Ok, time to unlock it
-    keychainRef = OpaqueTypeRef()
-    result = Security.SecKeychainOpen(keychain_name, byref(keychainRef))
-    if not keychainRef:
-        # Weird, it couldn't resolve - this shouldn't happen
-        raise Exception("Error: Something odd happened that shouldn't.")
-        # Perform unlock
-    result = Security.SecKeychainUnlock(keychainRef, len(password), password, True)
-    # Release the reference
-    _safe_release(keychainRef)
-    # Report on the result
-    if result != 0:
-        raise Exception('Error: Non-zero return on unlock ..?', result)
-
-
-def _set_keychain_settings(keychain_name, sleep_lock=False, interval_lock=False, interval_time=2147483647):
+        salt '*' keychain.set_settings keychain False True 120
+    '''
     # If you unlock the keychain before changing settings, you do not get prompted via GUI for non-root
     # Setting the interval time to anything other than the default 2147483647 overrides/ignores any value
     # for interval_lock and forces it to True.
-    exists, unlocked, readable, writable = _check_keychain_status(keychain_name)
-    if not exists:
-        raise Exception('Error: No such keychain')
+
+    status = __salt__['keychain.status'](keychain)
+    if not status['usable']:
+        raise salt.exceptions.CommandExecutionError('Error: No such keychain')
+
     # Make our settings object
     # Version number for settings is supposed to be '1'
     settings_struct = SecKeychainSettings(1, sleep_lock, interval_lock, interval_time)
     if settings_struct.lockInterval != 2147483647:
         interval_lock = True
-    # Time to change settings
+
     keychainRef = OpaqueTypeRef()
-    result = Security.SecKeychainOpen(keychain_name, byref(keychainRef))
+    result = Security.SecKeychainOpen(keychain, byref(keychainRef))
     if not keychainRef:
-        # Weird, it couldn't resolve - this shouldn't happen
-        raise Exception("Error: Something odd happened that shouldn't.")
-    # Perform settings change
+        raise salt.exceptions.CommandExecutionError(
+            "Error: Could not modify settings for keychain, because we couldnt get a reference to it."
+        )
+
     result = Security.SecKeychainSetSettings(keychainRef, byref(settings_struct))
-    # Release the reference
     _safe_release(keychainRef)
+
     if result != 0:
-        raise Exception('Error: Something went wrong with that settings change', result)
+        return False
+    else:
+        return True
 
 
-def _get_keychain_settings(keychain_name):
+def get_settings(keychain):
+    '''
+    Get keychain settings.
+    Will return a hash {'sleep_lock': False, 'interval_lock'=False, 'interval_time'=nnn}
+
+    keychain
+        The keychain, which may be the file name only for the user "login.keychain" or the full path to the keychain for
+        both user and system keychains.
+    '''
     # If you unlock the keychain before changing settings, you do not get prompted via GUI for non-root
     # Results returned are: bool sleep_lock, bool interval_lock, int interval_time (in seconds)
-    exists, unlocked, readable, writable = _check_keychain_status(keychain_name)
-    if not exists:
-        raise Exception('Error: No such keychain')
-    # Make our settings object, data to be filled in
-    # Version number for settings is supposed to be '1'
+    status = __salt__['keychain.status'](keychain)
+
+    if not status['usable']:
+        raise salt.exceptions.CommandExecutionError('Error: No such keychain')
+
     settings_struct = SecKeychainSettings(1, 0, 0, 0)
-    # Time to get settings
+
     keychainRef = OpaqueTypeRef()
-    result = Security.SecKeychainOpen(keychain_name, byref(keychainRef))
+    result = Security.SecKeychainOpen(keychain, byref(keychainRef))
     if not keychainRef:
-        # Weird, it couldn't resolve - this shouldn't happen
-        raise Exception("Error: Something odd happened that shouldn't.")
-    # Perform settings change
+        raise salt.exceptions.CommandExecutionError(
+            "Error: Could not modify settings for keychain, because we couldnt get a reference to it."
+        )
+
     result = Security.SecKeychainCopySettings(keychainRef, byref(settings_struct))
-    # Release the reference
     _safe_release(keychainRef)
+
     if result != 0:
-        raise Exception('Error: Something went wrong with that settings change', result)
-    # Apparently useLockInterval is always false. Whether it will lock or not is purely based on the timer value.
-    return (bool(settings_struct.lockOnSleep), settings_struct.lockInterval != 2147483647, settings_struct.lockInterval)
-
-
-def _create_keychain(keychain_name, password, auto_search=True):
-    # The zero is for 'do_prompt' for password
-    # The None is for default access rights for the keychain
-    if not password:
-        raise Exception('Error: Password must be provided')
-    if _keychain_available(keychain_name):
-        raise Exception('Error: Keychain already exists with this name')
-    keychainRef = OpaqueTypeRef()
-    result = Security.SecKeychainCreate(keychain_name, len(str(password)), str(password), 0, None, byref(keychainRef))
-    _safe_release(keychainRef)
-    if result != 0:
-        raise Exception('Error: Could not create keychain', result)
-    if auto_search:
-        _add_keychain_search(keychain_name)
-
-
-def _delete_keychain(keychain_name):
-    # For the time being here, dummy mode to keep from deleting login and System keychain
-    full_name = _resolve_keychain_name(keychain_name)
-    if (full_name == _resolve_keychain_name('login.keychain')):
-        return
-    if (full_name == '/Library/Keychains/System.keychain'):
-        return
-    keychainRef = OpaqueTypeRef()
-    # Always succeeds, safe to ignore result
-    result = Security.SecKeychainOpen(keychain_name, byref(keychainRef))
-    result = Security.SecKeychainDelete(keychainRef)
-    _safe_release(keychainRef)
-    if result != 0:
-        raise Exception('Error: Could not delete keychain', result)
+        raise salt.exceptions.CommandExecutionError(
+            'Error: Something went wrong with that settings change', result
+        )
+    else:
+        # Apparently useLockInterval is always false. Whether it will lock or not is purely based on the timer value.
+        return {
+            'sleep_lock': bool(settings_struct.lockOnSleep),
+            'interval_lock': settings_struct.lockInterval != 2147483647,
+            'interval_time': settings_struct.lockInterval
+        }
 
 
 def _keychain_import_cert(keychain_name, cert_path):
@@ -452,42 +363,150 @@ def _keychain_import_cert(keychain_name, cert_path):
         raise Exception('Error: Error importing certificate into keychain', result)
 
 
-def _keychain_add_trusted_cert(keychain_name, cert_path):
-    # WARNING - ROUGH CODE, NO ERROR HANDLING YET
-    # Yay, it works! - Still need to add error checking and result checking
+def add_trusted_cert(keychain, cert_path):
+    '''
+    Add a trusted certificate (PEM format) to a keychain.
+    Returns true if certificate was imported and trusted.
+
+    NOTE: If operating on a users keychain, the user will get a dialog asking for a password to change their
+    keychain settings.
+
+    keychain
+        The full path to the keychain. Filename may be used if modifying a keychain for the current user.
+
+    cert_path
+        The path to the certificate to add as trusted
+    '''
     # When used as a user in graphical mode - will cause a GUI prompt
     # When used as root, for one of root's keychains - does not cause a GUI prompt
+    # TODO: Add some checks to make sure that unwanted GUI prompts do not appear
     domain = kSecTrustSettingsDomainUser
     trustSettings = None
+
     keychainRef = OpaqueTypeRef()
-    result = Security.SecKeychainOpen(keychain_name, byref(keychainRef))
-    # Going to assume PEM file for now
-    certRef = OpaqueTypeRef()
-    # readCertFile(certFile, byref(certRef))
+    result = Security.SecKeychainOpen(keychain, byref(keychainRef))
+
+    if not keychainRef:
+        raise salt.exceptions.CommandExecutionError(
+            "Could not get a reference to the specified keychain. \
+            This should never happen. code: {0}, message: {1} ".format(result, _secErrorMessage(result))
+        )
+
     cert_handle = open(cert_path, 'rb')
     cert_data = cert_handle.read()
     cert_handle.close()
     if not (('-----BEGIN ' in cert_data) and ('-----END ' in cert_data)):
-        # isNotPem
-        raise Exception('Error: Certificate does not appear to be .pem file')
+        raise salt.exceptions.CommandExecutionError('Error: Certificate does not appear to be .pem file')
+
     # Decode the base64 data
     core_data = \
     cert_data.split('-----BEGIN ', 1)[-1].replace('\r', '\n').split('-----\n', 1)[-1].split('\n-----END ', 1)[0]
     core_data = ''.join(core_data.split('\n'))
     pem_data = create_string_buffer(base64.b64decode(core_data), len(core_data))
-    # Create the CSSM_DATA struct
+
+    # Create the CSSM_DATA struct, the API does not verify whether the certificate data is actually valid
     certData = CSSM_DATA(len(pem_data), addressof(pem_data))
     certRef = OpaqueTypeRef()
     result = Security.SecCertificateCreateFromData(byref(certData), CSSM_CERT_X_509v3, CSSM_CERT_ENCODING_DER,
                                                    byref(certRef))
-    # We're cooking with gas now
+
+    if result != 0:
+        raise salt.exceptions.CommandExecutionError(
+            "Failed to create certificate using the supplied data. \
+            code: {0}, message: {1} ".format(result, _secErrorMessage(result))
+        )
+
     result = Security.SecCertificateAddToKeychain(certRef, keychainRef)
+    if result != 0:
+        raise salt.exceptions.CommandExecutionError(
+            "Failed to add certificate to keychain. \
+            code: {0}, message: {1} ".format(result, _secErrorMessage(result))
+        )
+
     result = Security.SecTrustSettingsSetTrustSettings(certRef, domain, trustSettings)
+    if result != 0:
+        raise salt.exceptions.CommandExecutionError(
+            "Failed to set trust settings for the certificate. \
+            code: {0}, message: {1} ".format(result, _secErrorMessage(result))
+        )
+
     _safe_release(certRef)
     _safe_release(keychainRef)
 
+    return True
 
-def keychains(domain):
+
+def lock(path):
+    '''
+    Lock a keychain.
+
+    path
+        The full path to the keychain to lock
+    '''
+    status = __salt__['keychain.status'](path)
+
+    if not status['usable']:
+        raise Exception('Error: No such keychain')
+    if not status['unlocked']:
+        return True  # Already locked
+
+    keychainRef = OpaqueTypeRef()
+    result = Security.SecKeychainOpen(path, byref(keychainRef))
+
+    if not keychainRef:
+        raise salt.exceptions.CommandExecutionError(
+            "Could not get a reference to the specified keychain. This should never happen. result: ", result
+        )
+
+    result = Security.SecKeychainLock(keychainRef)
+    _safe_release(keychainRef)
+
+    if result != 0:
+        log.error('Error: Trying to lock keychain returned a non-zero status ', result)
+        return False
+    else:
+        return True
+
+
+def unlock(path, password):
+    '''
+    Unlock a keychain.
+
+    path
+        The full path to the keychain to unlock
+
+    password
+        The password required to unlock the keychain
+    '''
+    # As per pudquicks source: no UTF-8 yet
+    status = __salt__['keychain.available'](path)
+
+    if not status['usable']:
+        raise Exception('Error: No such keychain')
+    if status['unlocked']:
+        # Already unlocked, no need to lock it again
+        return True
+
+    # Ok, time to unlock it
+    keychainRef = OpaqueTypeRef()
+    result = Security.SecKeychainOpen(path, byref(keychainRef))
+
+    if not keychainRef:
+        # Weird, it couldn't resolve - this shouldn't happen
+        raise salt.exceptions.CommandExecutionError("Failed to open keychain for some unknown reason: ", result)
+        # Perform unlock
+
+    result = Security.SecKeychainUnlock(keychainRef, len(password), password, True)
+    _safe_release(keychainRef)
+
+    if result != 0:
+        log.warning('Trying to unlock keychain failed, may be an incorrect password. result: ', result)
+        return False
+    else:
+        return True
+
+
+def keychains(domain='system'):
     '''
     Get a list of keychains
 
@@ -501,12 +520,105 @@ def keychains(domain):
         salt '*' keychain.keychains [domain]
     '''
     if domain == 'user':
-        k_domain = kSecPreferencesDomainUser
+        kDomain = kSecPreferencesDomainUser
+    elif domain == 'system':
+        kDomain = kSecPreferencesDomainSystem
     else:
-        k_domain = kSecPreferencesDomainSystem
+        raise salt.exceptions.CommandExecutionError('Unrecognised keychain domain given: {}'.format(domain))
 
-    paths = _list_keychains(k_domain)
-    return paths
+    keychain_paths = []
+    search_list = OpaqueTypeRef()
+    log.debug('Looking up keychain search list from Security framework')
+
+    # Look up our list of keychain paths in the user domain, pass the results back in search_list
+    result = Security.SecKeychainCopyDomainSearchList(kDomain, byref(search_list))
+
+    # Return code is zero on success
+    if result != 0:
+        log.error('Failed to get keychain search list, no reason given')
+        raise salt.exceptions.CommandExecutionError(
+            'Error: Could not get keychain search list for some reason'
+        )
+
+    # SecKeychainCopyDomainSearchList is pretty gross. It can return a single SecKeychainRef
+    # ... OR it can return a CFArray of them. So you have to check what you're getting.
+
+    if CFoundation.CFGetTypeID(search_list) == Security.SecKeychainGetTypeID():
+        # It's a SecKeychain, just get the path value directly
+        keychain_paths.append(_get_keychain_path(search_list))
+
+    elif CFoundation.CFGetTypeID(search_list) == CFoundation.CFArrayGetTypeID():
+        # It's a CFArray of SecKeychains, gotta loop
+        count = CFoundation.CFArrayGetCount(search_list)
+        for i in range(count):
+            # Work with the items one at a time
+            a_keychain = CFArrayGetValueAtIndex(search_list, i)
+            keychain_paths.append(_get_keychain_path(a_keychain))
+    return keychain_paths
+
+
+def status(path):
+    '''
+    Check if keychain is available, and what its status is (usable, unlocked, readable, writable)
+
+    path
+        The fully qualified path to the keychain
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' keychain.status /Library/Keychains/System.keychain
+    '''
+    # In the user domain
+    # This is a higher level function the others rely on
+
+    # Rewritten from pudquick's version to use dict, plays nicer with salt.
+    #status = [False, None, None, None]
+    status = {'usable': False, 'unlocked': None, 'readable': None, 'writable': None}
+
+    keychainRef = OpaqueTypeRef()
+    result = Security.SecKeychainOpen(path, byref(keychainRef))
+
+    if not keychainRef:
+        # Weird, it couldn't resolve - this shouldn't happen
+        return status
+
+    # Check on the status of the keychain
+    status_mask = c_uint(0)
+    result = Security.SecKeychainGetStatus(keychainRef, byref(status_mask))
+
+    if result == 0:
+        # Keychain is available and usable - now to unpack status_mask
+        # Quick hack:
+        # 1 = unlocked
+        # 2 = readable
+        # 4 = writable
+        # Format the integer into a 3 digit binary string ('000','001', etc), map True for 1 & False for 0 per digit,
+        # then reverse the order (so they're in order: 1, 2, 4)
+        status_keys = ['unlocked', 'readable', 'writable']
+        status_list = [True] + map(lambda x: x == '1', '{0:03b}'.format(status_mask.value))[::-1]
+        status = dict(zip(status_keys, status_list))
+        status['usable'] = True
+
+    _safe_release(keychainRef)
+    return status
+
+
+def available(path):
+    '''
+    Check if keychain is available. Returns true or false
+
+    path
+        The fully qualified path to the keychain
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' keychain.available /Library/Keychains/System.keychain
+    '''
+    return __salt__['keychain.status'](path)['usable']
 
 
 def create(path, password, auto_search=True):
@@ -528,7 +640,27 @@ def create(path, password, auto_search=True):
 
         salt '*' keychain.create <path> <password> [auto_search]
     '''
-    pass
+
+    if not password:
+        raise salt.exceptions.CommandExecutionError('Error: Password must be provided')
+
+    if __salt__['keychain.available'](path):
+        raise salt.exceptions.CommandExecutionError('Error: Keychain already exists with this name')
+
+    keychainRef = OpaqueTypeRef()
+
+    # The zero is for 'do_prompt' for password
+    # The None is for default access rights for the keychain
+    result = Security.SecKeychainCreate(path, len(str(password)), str(password), 0, None, byref(keychainRef))
+    _safe_release(keychainRef)
+
+    if result != 0:
+        raise Exception('Error: Could not create keychain', result)
+
+    if auto_search:
+        __salt__['keychain.add_search'](path)
+
+
 
 def delete(path):
     '''
@@ -543,6 +675,155 @@ def delete(path):
 
         salt '*' keychain.delete <path>
     '''
-    pass
+# def _delete_keychain(keychain_name):
+    # For the time being here, dummy mode to keep from deleting login and System keychain
+    full_name = _resolve_keychain_name(path)
+    if full_name == _resolve_keychain_name('login.keychain'):
+        log.warning('Refusing to delete login keychain')
+        return False
+
+    if full_name == '/Library/Keychains/System.keychain':
+        log.warning('Refusing to delete system keychain')
+        return False
+
+    keychainRef = OpaqueTypeRef()
+    # Always succeeds, safe to ignore result
+    result = Security.SecKeychainOpen(path, byref(keychainRef))
+    result = Security.SecKeychainDelete(keychainRef)
+    _safe_release(keychainRef)
+
+    if result != 0:
+        raise salt.exceptions.CommandExecutionError('Error: Could not delete keychain', result)
+
+    return True
 
 
+def in_search(path):
+    '''
+    Determine whether a keychain is in the search path.
+    Returns True or False
+
+    path
+        The full path of the keychain to check against the search list.
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' keychain.in_search <path>
+    '''
+    keychains = __salt__['keychain.keychains']('user')
+    return path in keychains
+
+def add_search(path):
+    '''
+    Add a keychain to the search list.
+
+    path
+        The full path to the keychain to add
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' keychain.add_search <path>
+    '''
+    # In the user domain
+    if __salt__['keychain.in_search'](path):
+        # It's already there, just return
+        return
+
+    # Otherwise, need to add it to the search path - it'll go at the end
+    new_path_list = __salt__['keychain.keychains']()
+    new_path_list.append(path)
+
+    # Set our search path to the new list
+    __salt__['keychain.set_search'](new_path_list)
+
+
+def set_search(paths):
+    '''
+    Set the search list for keychains.
+
+    paths
+        keychains that should be in the search list.
+    '''
+    # def _set_keychain_search(keychain_list):
+    # In the user domain
+    # Note: SecKeychainOpen, by design, does not fail for keychain paths that don't exist.
+    # Keychains can be kept on smartcard devices that fall under the 'dynamic' domain
+    # in that they should be part of the search path, but aren't guaranteed to always be there.
+    # See: http://lists.apple.com/archives/apple-cdsa/2006/Feb/msg00063.html
+    # Also: Non-absolute paths are considered to be located (by SecKeychainOpen) in the
+    # ~/Library/Keychains path. This isn't really well documented by Apple.
+    problem = False
+    if not paths:
+        # Need to create a blank list and set our search path to it.
+        search_arrayRef = CFArrayCreate(None, None, 0, CFoundation.kCFTypeArrayCallBacks)
+    else:
+        # One or more items. Need to create an array of them
+        search_arrayRef = CFArrayCreateMutable(None, 0, CFoundation.kCFTypeArrayCallBacks)
+        for keychain_path in paths:
+            # Set up a null pointer to store the ref at
+            keychainRef = OpaqueTypeRef()
+            result = Security.SecKeychainOpen(keychain_path, byref(keychainRef))
+            if (result != 0) or (not keychainRef):
+                # There was a problem, don't set any paths
+                problem = True
+            else:
+                # Append the keychain reference and release it
+                result = CFoundation.CFArrayAppendValue(search_arrayRef, keychainRef)
+                _safe_release(keychainRef)
+
+    # Attempt to set the search paths
+    result = Security.SecKeychainSetDomainSearchList(kSecPreferencesDomainUser, search_arrayRef)
+    _safe_release(search_arrayRef)
+
+    if (result != 0) or (problem):
+        return False
+    else:
+        return True
+
+
+def remove_search(path):
+    '''
+    Remove a keychain from the search list
+
+    path
+        The path to the keychain for removal
+    '''
+    # In the user domain, some safety to keep from removing a login keychain
+    if not __salt__['keychain.in_search'](path):
+        # It's not in the search path currently, so just return
+        return False
+
+    full_name = _resolve_keychain_name(path)
+    if full_name == _resolve_keychain_name('login.keychain'):
+        # Safety feature - don't want to remove the login keychain accidentally
+        log.warning('Refusing to remove the login keychain')
+        return False
+
+    # Otherwise, it is in the search path - need to remove it
+    new_path_list = __salt__['keychain.keychains']()
+    # Remove it from the list
+    new_path_list.remove(full_name)
+    # Set our search path to the new list
+    __salt__['keychain.set_search'](new_path_list)
+
+    return True
+
+
+def unlocked(path):
+    '''
+    Determine whether a keychain is unlocked
+
+    path
+        The path to the keychain for which will determine locked/unlocked status
+    '''
+    # Hell, even the security tool won't tell you (directly) if a keychain is unlocked ...
+    status = __salt__['keychain.available'](path)
+
+    if not status['usable']:
+        raise salt.exceptions.CommandExecutionError('Error: No such keychain')
+
+    return status['unlocked']

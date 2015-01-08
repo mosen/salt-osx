@@ -31,25 +31,35 @@
 #            ADAllowMultiDomainAuth: True
 #            ADTrustChangePassIntervalDays: 0
 
-com.salt-osx.vpn.alacarte:
+#com.salt-osx.vpn.alacarte:
+#  profile.installed:
+#    - description: An example VPN Payload
+#    - displayname: salt-osx example VPN payload
+#    - organization: salt-osx inc.
+#    - removaldisallowed: False
+#    - content:
+#      - com.apple.vpn.managed:
+#          UserDefinedName: Salt Test VPN
+#          OverridePrimary: True
+#          VPNType: PPTP
+#          OnDemandEnabled: 0
+#          PPP:
+#            CommRemoteAddress: vpn.salt.private
+#            AuthName: salt
+#            AuthPassword: salt
+#            TokenCard: False
+#            CCPEnabled: True
+#            CCPMPPE128Enabled: True
+#            CCPMPPE40Enabled: True
+
+com.salt-osx.webclip.alacarte:
   profile.installed:
-    - description: An example VPN Payload
-    - displayname: salt-osx example VPN payload
+    - description: An example WebClip Payload
+    - displayname: salt-osx example WebClip payload
     - organization: salt-osx inc.
     - removaldisallowed: False
     - content:
-      - com.apple.vpn.managed:
-          UserDefinedName: Salt Test VPN
-          OverridePrimary: True
-          VPNType: PPTP
-          OnDemandEnabled: 0
-          PPP:
-            CommRemoteAddress: vpn.salt.private
-            AuthName: salt
-            AuthPassword: salt
-            TokenCard: False
-            CCPEnabled: True
-            CCPMPPE128Enabled: True
-            CCPMPPE40Enabled: True
-
+      - com.apple.webClip.managed:
+          Label: GitHub
+          URL: https://github.com
 

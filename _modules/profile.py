@@ -240,3 +240,37 @@ def generate(identifier, description, displayname, organization, content, remova
 
     plist_content = plistlib.writePlistToString(document)
     return plist_content
+
+
+def install(path):
+    '''
+    Install a configuration profile.
+
+    path
+        Full path to the configuration profile to install
+    '''
+    status = __salt__['cmd.retcode']('/usr/bin/profiles -I -F {}'.format(path))
+
+    if not status == 0:
+        raise salt.exceptions.CommandExecutionError(
+            'Failed to install profile at path: {}'.format(path)
+        )
+
+    return True
+
+
+def remove(identifier):
+    '''
+    Remove a configuration profile by its profile identifier
+
+    identifier
+        The ProfileIdentifier
+    '''
+    status = __salt__['cmd.retcode']('/usr/bin/profiles -R -p {}'.format(identifier))
+
+    if not status == 0:
+        raise salt.exceptions.CommandExecutionError(
+            'Failed to remove profile with identifier: {}'.format(path)
+        )
+
+    return True

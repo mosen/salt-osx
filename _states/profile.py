@@ -59,23 +59,25 @@ def installed(name, description, displayname, organization, removaldisallowed, c
 
     installed = __salt__['profile.installed'](name)
 
+    if installed:
+        ret['comment'] = 'Profile already installed with identifier: {0}'.format(name)
+        return ret
+
+    content = __salt__['profile.generate'](
+        name,
+        description,
+        displayname,
+        organization,
+        content
+    )
+
     if __opts__['test']:
-        if installed:
-            ret['comment'] = 'Profile already installed with identifier: {0}'.format(name)
-            return ret
-
-        content = __salt__['profile.generate'](
-            name,
-            description,
-            displayname,
-            organization,
-            content
-        )
-
         ret['result'] = None
         ret['comment'] = 'New profile would have been generated, property list follows: {0}'.format(content)
         return ret
 
-    raise salt.exceptions.CommandNotFoundError(
-        'This functionality does not yet exist! profiles can only be run in test mode'
-    )
+
+
+    # raise salt.exceptions.CommandNotFoundError(
+    #     'This functionality does not yet exist! profiles can only be run in test mode'
+    # )

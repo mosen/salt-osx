@@ -30,7 +30,6 @@ __virtualname__ = 'profile'
 def __virtual__():
     return __virtualname__ if salt.utils.is_darwin() else False
 
-
 def _content_to_uuid(payload):
     '''
     Generate a UUID based upon the payload content
@@ -40,8 +39,11 @@ def _content_to_uuid(payload):
     '''
     str_payload = plistlib.writePlistToString(payload)
     hashobj = hashlib.md5(str_payload)
-    pattern = r'/\A([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})\z/'
-    identifier = re.sub(pattern, r'\\1-\\2-\\3-\\4-\\5', binascii.hexlify(hashobj.digest()))
+
+    identifier = re.sub(
+        '([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})',
+        '\\1-\\2-\\3-\\4-\\5',
+        binascii.hexlify(hashobj.digest()))
 
     return identifier
 
@@ -100,8 +102,8 @@ def _transform_content(content, identifier):
     We can use this to check whether or not the content has been modified. Even when the attributes cannot
     be compared (as with passwords, which are omitted).
 
-    :param content:
-    :return:
+    Payload content is given as a dict of PayloadType -> Contents, and transformed into an array containing
+    PayloadType: PayloadType
     '''
     if not content:
         return list()
@@ -192,51 +194,85 @@ def installed(identifier):
     return False
 
 
-def generate(identifier, description, displayname, organization, content, removaldisallowed=False, **kwargs):
+def generate(identifier, profile_uuid=None, **kwargs):
     '''
     Generate a configuration profile.
 
     Intended to be used by other execution and state modules to prepare a profile for installation.
     Not really intended for CLI usage.
 
+    As per the documentation, only the identifier and uuid are actually compulsory keys. It is possible to make
+    a profile without anything else, however the profile will be downright useless.
+
     identifier
         The profile identifier, which is the primary key for identifying whether a profile is installed.
 
-    description
-        Description of the profile
+    profile_uuid
+        Normally you would leave this blank, and the module will generate a UUID for you. However, if you specifically
+        need to test with a fixed uuid, this can be set.
 
-    displayname
-        The name of the profile shown to the user
+    Keyword arguments:
 
-    organization
-        The organization issuing the profile
+        description
+            Description of the profile
 
-    content
-        The payload content for the profile, as a hash
+        displayname
+            The name of the profile shown to the user
 
-    removaldisallowed : False
-        Whether removal of the profile will be allowed
+        organization
+            The organization issuing the profile
+
+        content
+            The payload content for the profile, as a hash
+
+        removaldisallowed : False
+            Whether removal of the profile will be allowed
+
+        scope : System
+            The scope of items to install, the default is system wide but may also be user.
+            Note that only the System scope really makes sense in salt.
+
+        removaldate
+            The date on which the profile will be automatically removed.
+
+        durationuntilremoval
+            The number of seconds until profile is automatically removed, the smaller of this and removaldate will be
+            used.
+
+        consenttext : { "default": "message" }
+            The warning/disclaimer shown when installing the profile interactively.
     '''
-    profile_uuid = uuid.uuid4()
+    if not profile_uuid:
+        profile_uuid = uuid.uuid4()
+
     log.debug("Creating new profile with UUID: {}".format(str(profile_uuid)))
 
-    # As per managedmac for puppet, it's necessary to generate UUIDs for each payload based upon the content
-    # in order to detect changes to the payload.
-    # Transform a dict of { type: data } to { PayloadContent: data, }
-    transformed = _transform_content(content, identifier)
+    VALID_PROPERTIES = ['description', 'displayname', 'organization', 'content', 'removaldisallowed', 'scope',
+                        'removaldate', 'durationuntilremoval', 'consenttext']
 
-    document = {
-        'PayloadIdentifier': identifier,
-        'PayloadDescription': description,
-        'PayloadDisplayName': displayname,
-        'PayloadOrganization': organization,
-        'PayloadRemovalDisallowed': (removaldisallowed == True),
-        'PayloadScope': 'System',
-        'PayloadType': 'Configuration',
-        'PayloadUUID': str(profile_uuid),
-        'PayloadVersion': 1,
-        'PayloadContent': transformed
-    }
+    validkwargs = {k: v for k, v in kwargs.iteritems() if k in VALID_PROPERTIES}
+
+    document = {'PayloadScope': 'System', 'PayloadUUID': str(profile_uuid), 'PayloadVersion': 1,
+                'PayloadType': 'Configuration', 'PayloadIdentifier': identifier}
+
+    for k, v in validkwargs.items():
+        if k in ('__id__', 'fun', 'state', '__env__', '__sls__', 'order', 'watch', 'watch_in', 'require',
+                 'require_in', 'prereq', 'prereq_in'):
+            pass
+        elif k == 'content':
+            # As per managedmac for puppet, it's necessary to generate UUIDs for each payload based upon the content
+            # in order to detect changes to the payload.
+            # Transform a dict of { type: data } to { PayloadContent: data, }
+            payload_content = _transform_content(kwargs['content'], identifier)
+            document['PayloadContent'] = payload_content
+        elif k == 'description':
+            document['PayloadDescription'] = v
+        elif k == 'displayname':
+            document['PayloadDisplayName'] = v
+        elif k == 'organization':
+            document['PayloadOrganization'] = v
+        elif k == 'removaldisallowed':
+            document['PayloadRemovalDisallowed'] = (v is True)
 
     plist_content = plistlib.writePlistToString(document)
     return plist_content

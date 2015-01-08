@@ -149,4 +149,4 @@ def set_settings(name, **kwargs):
         '/usr/bin/pmset {0} {1}'.format(POWER_SWITCHES[name], args)
     )
 
-    return result['retcode']
+    return result['retcode'] == 0

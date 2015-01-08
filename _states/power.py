@@ -2,6 +2,9 @@
 '''
 manage energy saver/power management settings.
 
+Please see the man page for pmset(1) for further explanation of what each option does.
+For convenience, options that were 0/1 are converted to True or False.
+
  .. code-block:: yaml
 
     ac:
@@ -9,9 +12,13 @@ manage energy saver/power management settings.
         - settings
         - sleep: 60
         - displaysleep: 10
+        - disksleep: 120
 '''
+import logging
 import salt.utils
 import salt.exceptions
+
+log = logging.getLogger(__name__)
 
 POWER_SOURCES = ['ac', 'battery']  # ups
 VALID_SETTINGS = ['displaysleep', 'disksleep', 'sleep', 'womp', 'ring', 'autorestart', 'lidwake', 'acwake',
@@ -23,7 +30,7 @@ __virtualname__ = 'power'
 
 def __virtual__():
     """Only load on OSX"""
-    return 'plist' if salt.utils.is_darwin() else False
+    return __virtualname__ if salt.utils.is_darwin() else False
 
 
 def settings(name, **kwargs):
@@ -40,7 +47,37 @@ def settings(name, **kwargs):
 
     settings = __salt__['pmset.list_settings']()
 
-    pending = {k: v for k, v in kwargs.iteritems() if k in VALID_SETTINGS and settings[name][k] != v}
+    if name not in settings:
+        ret['result'] = None
+        ret['comment'] = 'Power source not available on this minion: {0}'.format(name)
+
+        return ret
+
+    def _validChange(item):
+        '''Determine if given pair is a valid setting, and is an update'''
+        k, v = item
+
+        if k not in VALID_SETTINGS:
+            return False
+
+        if k not in settings[name]:
+            return True
+
+        if settings[name][k] != v:
+            return True
+
+        return False
+
+    pending = dict(filter(_validChange, kwargs.iteritems()))
+
+    # pmset will fail if disk sleep is never and system sleep is defined
+    if 'disksleep' in pending and 'sleep' in pending:
+        if pending['disksleep'] == 0 and pending['sleep'] > 0:
+            ret['result'] = False
+            ret['comment'] = 'It is not possible to disable disk sleep when system sleep is enabled'
+            return ret
+
+
     changes = {'old': settings[name], 'new': pending}
 
     if __opts__['test']:
@@ -53,7 +90,7 @@ def settings(name, **kwargs):
             ret['comment'] = 'No changes required'
     else:
         if changes['new']:
-            success = __salt__['pmset.set_settings'](name, pending)
+            success = __salt__['pmset.set_settings'](name, **pending)
             ret['result'] = success
 
             if success:

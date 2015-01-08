@@ -5,11 +5,11 @@ ac:
   power:
     - settings
     - displaysleep: 10  # Number of minutes to sleep display, zero always means never sleep
-    - disksleep: 0  # Disk spin down
+    - disksleep: 120  # Disk spin down
     - sleep: 60  # System sleep
-    - womp: True  # Wake on ethernet magic packet
+    - womp: False  # Wake on ethernet magic packet
     - ring: False  # Wake on modem ring
-    - autorestart: True  # Auto restart on power loss
+    - autorestart: False  # Auto restart on power loss
     - lidwake: True  # Wake when lid is opened
     - acwake: False  # Wake when power source is changed
     - lessbright: False  # Turn down brightness when switching to this power source

@@ -19,13 +19,14 @@ try:
     import os.path, base64
     from ctypes import CDLL, Structure, POINTER, byref, addressof, create_string_buffer, c_int, c_uint, c_ubyte, \
         c_void_p, c_size_t
+    from ctypes.util import find_library
     from CoreFoundation import kCFStringEncodingUTF8
 
-    Security = CDLL('/System/Library/Frameworks/Security.Framework/Versions/Current/Security')
+    Security = CDLL(find_library('Security'))
     # I don't use the pyObjC CoreFoundation import because it attempts to bridge between CF, NS, and python.
     # When you try to mix it with Security.Foundation (pure C / CF), you get nasty results.
     # So I directly import CoreFoundation to work with CFTypes to keep it pure of NS/python bridges.
-    CFoundation = CDLL('/System/Library/Frameworks/CoreFoundation.Framework/Versions/Current/CoreFoundation')
+    CFoundation = CDLL(find_library('CoreFoundation'))
 
     HAS_LIBS = True
 except ImportError:
@@ -47,6 +48,7 @@ def __virtual__():
     return __virtualname__
 
 
+# TODO: Probably a more efficient way of representing error types
 def _secErrorMessage(errCode):
     '''
     Retrieve a useful error message, given a return code from the Security framework
@@ -145,6 +147,9 @@ CFDataCreate = CFoundation.CFDataCreate
 CFDataCreate.restype = OpaqueTypeRef
 CFStringCreateWithCString = CFoundation.CFStringCreateWithCString
 CFStringCreateWithCString.restype = OpaqueTypeRef
+CFDictionaryCreate = CFoundation.CFDictionaryCreate
+CFDictionaryCreate.restype = OpaqueTypeRef
+
 
 CSSM_CERT_X_509v3 = 3
 CSSM_CERT_ENCODING_DER = 3
@@ -156,6 +161,15 @@ kSecKeySecurePassphrase = 2
 kSecTrustSettingsDomainUser = 0
 kSecTrustSettingsDomainAdmin = 1
 kSecTrustSettingsDomainSystem = 2  # System trust settings are read-only, even by root
+
+
+# kSecClass CFTypeRef
+# kSecClassGenericPassword = 0
+# kSecClassInternetPassword = 1
+# kSecClassCertificate = 2
+# kSecClassKey = 3
+# kSecClassIdentity = 4
+
 
 # Per SecKeychain.h
 kSecPreferencesDomainUser = 0
@@ -234,6 +248,10 @@ def _resolve_keychain_name(keychain_name):
     # Release the ref
     _safe_release(keychainRef)
     return keychain_path
+
+def _search_keychain_item(klass):
+    """Get a listing of keychain items by item class"""
+    pass
 
 
 def set_settings(keychain, sleep_lock=False, interval_lock=False, interval_time=2147483647):
@@ -363,7 +381,7 @@ def _keychain_import_cert(keychain_name, cert_path):
         raise Exception('Error: Error importing certificate into keychain', result)
 
 
-def add_trusted_cert(keychain, cert_path):
+def import_cert(keychain, cert_path):
     '''
     Add a trusted certificate (PEM format) to a keychain.
     Returns true if certificate was imported and trusted.
@@ -377,57 +395,53 @@ def add_trusted_cert(keychain, cert_path):
     cert_path
         The path to the certificate to add as trusted
     '''
-    # When used as a user in graphical mode - will cause a GUI prompt
+    # When used as a user in graphical mode - will cause a GUI prompt - use SecKeychainSetUserInteractionAllowed
     # When used as root, for one of root's keychains - does not cause a GUI prompt
     # TODO: Add some checks to make sure that unwanted GUI prompts do not appear
-    domain = kSecTrustSettingsDomainUser
-    trustSettings = None
+    if not os.path.exists(cert_path):
+        raise salt.exceptions.CommandExecutionError("Certificate file does not exist: {}".format(cert_path))
 
     keychainRef = OpaqueTypeRef()
     result = Security.SecKeychainOpen(keychain, byref(keychainRef))
 
     if not keychainRef:
         raise salt.exceptions.CommandExecutionError(
-            "Could not get a reference to the specified keychain. \
-            This should never happen. code: {0}, message: {1} ".format(result, _secErrorMessage(result))
+            ("Could not get a reference to the specified keychain. "
+             "code: {0}, message: {1} ").format(result, _secErrorMessage(result))
         )
 
     cert_handle = open(cert_path, 'rb')
     cert_data = cert_handle.read()
     cert_handle.close()
-    if not (('-----BEGIN ' in cert_data) and ('-----END ' in cert_data)):
-        raise salt.exceptions.CommandExecutionError('Error: Certificate does not appear to be .pem file')
 
-    # Decode the base64 data
-    core_data = \
-    cert_data.split('-----BEGIN ', 1)[-1].replace('\r', '\n').split('-----\n', 1)[-1].split('\n-----END ', 1)[0]
-    core_data = ''.join(core_data.split('\n'))
-    pem_data = create_string_buffer(base64.b64decode(core_data), len(core_data))
+    PEM_STRING = '-----BEGIN CERTIFICATE-----'
+    if PEM_STRING in cert_data:
+        # Decode the base64 data
+        core_data = \
+            cert_data.split('-----BEGIN ', 1)[-1].replace('\r', '\n').split('-----\n', 1)[-1].split('\n-----END ', 1)[0]
+        core_data = ''.join(core_data.split('\n'))
+        binary_data = create_string_buffer(base64.b64decode(core_data), len(core_data))
+    else:
+        log.debug("Certificate doesn't look like PEM encoded, assuming DER encoding")
+        # Assume DER encoded
+        binary_data = cert_data
+
 
     # Create the CSSM_DATA struct, the API does not verify whether the certificate data is actually valid
-    certData = CSSM_DATA(len(pem_data), addressof(pem_data))
+    certData = CSSM_DATA(len(binary_data), addressof(binary_data))
     certRef = OpaqueTypeRef()
     result = Security.SecCertificateCreateFromData(byref(certData), CSSM_CERT_X_509v3, CSSM_CERT_ENCODING_DER,
                                                    byref(certRef))
 
     if result != 0:
         raise salt.exceptions.CommandExecutionError(
-            "Failed to create certificate using the supplied data. \
-            code: {0}, message: {1} ".format(result, _secErrorMessage(result))
+            "Failed to create certificate using the supplied data. code: {0}, message: {1} ".format(result, _secErrorMessage(result))
         )
 
     result = Security.SecCertificateAddToKeychain(certRef, keychainRef)
     if result != 0:
         raise salt.exceptions.CommandExecutionError(
-            "Failed to add certificate to keychain. \
-            code: {0}, message: {1} ".format(result, _secErrorMessage(result))
-        )
-
-    result = Security.SecTrustSettingsSetTrustSettings(certRef, domain, trustSettings)
-    if result != 0:
-        raise salt.exceptions.CommandExecutionError(
-            "Failed to set trust settings for the certificate. \
-            code: {0}, message: {1} ".format(result, _secErrorMessage(result))
+            "Failed to add certificate to keychain code: {0}, message: {1} ".format(result, _secErrorMessage(result))
         )
 
     _safe_release(certRef)
@@ -435,6 +449,20 @@ def add_trusted_cert(keychain, cert_path):
 
     return True
 
+def trust():
+    '''
+    Set trust settings for a certificate
+    :return:
+    '''
+    # domain = kSecTrustSettingsDomainUser
+    # trustSettings = None
+    #
+    # result = Security.SecTrustSettingsSetTrustSettings(certRef, domain, trustSettings)
+    # if result != 0:
+    #     raise salt.exceptions.CommandExecutionError(
+    #         "Failed to set trust settings for the certificate. \
+    #         code: {0}, message: {1} ".format(result, _secErrorMessage(result))
+    #     )
 
 def lock(path):
     '''
@@ -827,3 +855,17 @@ def unlocked(path):
         raise salt.exceptions.CommandExecutionError('Error: No such keychain')
 
     return status['unlocked']
+
+
+def items(keychain):
+    '''
+    Get a list of the keychain items in the specified keychain.
+
+    keychain
+        File name or full path to keychain to list
+    '''
+
+    #query =
+    #status = Security.SecItemCopyMatching(queryRef, byref(result))
+
+

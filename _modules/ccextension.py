@@ -14,8 +14,10 @@ __virtualname__ = 'ccextension'
 
 if salt.utils.is_darwin():
     EXMANCMD = '/Applications/Adobe Extension Manager CC/Adobe Extension Manager CC.app/Contents/MacOS/ExManCmd'
+    PLATFORM_SWITCH = '--'
 elif salt.utils.is_windows():
     EXMANCMD = 'C:\Program Files\Adobe\Adobe Extension Manager CC\ExManCmd.exe'
+    PLATFORM_SWITCH = '/'
 else:
     EXMANCMD = None
 
@@ -37,8 +39,8 @@ def items():
     Returns a dict containing a list for each product name, which is a short name (not always related to the
     executable name)
     '''
-    platform_switch = '--' if salt.utils.is_darwin() else '/'
-    listall_cmd = '"{}" {}list all'.format(EXMANCMD, platform_switch)
+
+    listall_cmd = '"{}" {}list all'.format(EXMANCMD, PLATFORM_SWITCH)
     output = __salt__['cmd.run'](listall_cmd)
 
 
@@ -66,3 +68,43 @@ def items():
 
     return items
 
+
+def install(zxp_path, all_users=True):
+    '''
+    Install a ZXP extension using Extension Manager
+
+    zxp_path
+        Full path to the ZXP file to install
+
+    all_users : True
+        Whether to install the extension for all users of the computer, default is true.
+    '''
+    install_cmd = '"{}" {}disableSendResult true {}install "{}"'.format(EXMANCMD, PLATFORM_SWITCH, PLATFORM_SWITCH, zxp_path)
+    status = __salt__['cmd.retcode'](install_cmd)
+
+    if status == 0:
+        return True
+    else:
+        log.error('Failed to install CC extension: {}, error code: {}'.format(zxp_path, status))
+        return False
+
+
+def remove(name, all_users=True):
+    '''
+    Remove an extension using Extension Manager.
+    The name may be the short name or the reverse domain form depending on what the developer uses.
+    Check the GUI or the output of ccextension.items to see the name
+
+    name
+        The name of the extension, shown in extension manager.
+
+
+    '''
+    remove_cmd = '"{}" {}disableSendResult true {}remove "{}"'.format(EXMANCMD, PLATFORM_SWITCH, PLATFORM_SWITCH, name)
+    status = __salt__['cmd.retcode'](remove_cmd)
+
+    if status == 0:
+        return True
+    else:
+        log.error('Failed to remove CC extension: {}, error code: {}'.format(name, status))
+        return False

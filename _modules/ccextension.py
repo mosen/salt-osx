@@ -40,7 +40,7 @@ def items():
     executable name)
     '''
 
-    listall_cmd = '"{}" {}list all'.format(EXMANCMD, PLATFORM_SWITCH)
+    listall_cmd = '"{}" {}disableSendResult true {}list all'.format(EXMANCMD, PLATFORM_SWITCH, PLATFORM_SWITCH)
     output = __salt__['cmd.run'](listall_cmd)
 
 
@@ -98,7 +98,8 @@ def remove(name, all_users=True):
     name
         The name of the extension, shown in extension manager.
 
-
+    all_users : True
+        Whether to remove the extension for all users of the computer, default is true.
     '''
     remove_cmd = '"{}" {}disableSendResult true {}remove "{}"'.format(EXMANCMD, PLATFORM_SWITCH, PLATFORM_SWITCH, name)
     status = __salt__['cmd.retcode'](remove_cmd)

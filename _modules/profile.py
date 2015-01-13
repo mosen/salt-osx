@@ -92,7 +92,37 @@ def _add_activedirectory_keys(payload):
 
     for k in payload.keys():
         if k in needs_flag:
-            payload[needs_flag[k]] = True
+            payload[needs_flag[k] + 'Flag'] = True
+
+
+def _transform_payload(payload, identifier):
+    '''
+    Transform a payload by:
+    - Calculating the UUID based upon a hash of the content.
+    - Adding common keys required for every payload.
+    - Adding required flags for the active directory payload
+
+    :param payload:
+    :param identifier:
+    :return:
+    '''
+    if 'PayloadUUID' in payload:
+        del payload['PayloadUUID']
+
+    hashed_uuid = _content_to_uuid(payload)
+
+    # No identifier supplied for the payload, so we generate one
+    if 'PayloadIdentifier' not in payload:
+        payload['PayloadIdentifier'] = "{0}.{1}".format(identifier, hashed_uuid)
+
+    payload['PayloadUUID'] = hashed_uuid
+    payload['PayloadEnabled'] = True
+    payload['PayloadVersion'] = 1
+
+    if payload['PayloadType'] == 'com.apple.DirectoryService.managed':
+        _add_activedirectory_keys(payload)
+
+    return payload
 
 
 def _transform_content(content, identifier):
@@ -101,45 +131,41 @@ def _transform_content(content, identifier):
     PayloadUUID for each Payload is modified MD5sum of the payload itself, minus some keys.
     We can use this to check whether or not the content has been modified. Even when the attributes cannot
     be compared (as with passwords, which are omitted).
-
-    Payload content is given as a dict of PayloadType -> Contents, and transformed into an array containing
-    PayloadType: PayloadType
     '''
     if not content:
         return list()
 
-    transformed = list()
+    transformed = [_transform_payload(payload, identifier) for payload in content]
 
-    for payload in content:
-        for payload_type, data in payload.items():
-            trans = dict()
-
-            trans['PayloadType'] = payload_type
-
-            if 'PayloadUUID' in trans:
-                del trans['PayloadUUID']
-
-            embedded_payload_uuid = _content_to_uuid(data)
-
-            if 'PayloadIdentifier' in trans:
-                embedded_payload_id = trans['PayloadIdentifier']
-            else:
-                embedded_payload_id = "{}.{}".format(identifier, embedded_payload_uuid)
-
-            trans['PayloadIdentifier'] = embedded_payload_id
-            trans['PayloadUUID'] = embedded_payload_uuid
-            trans['PayloadEnabled'] = True
-            trans['PayloadVersion'] = 1
-
-            # if trans['PayloadType'] == 'com.apple.DirectoryService.managed':
-            #     _add_activedirectory_keys(data)
-
-            trans['PayloadContent'] = data
-
-            trans['PayloadDescription'] = 'Payload level description'
-            trans['PayloadDisplayName'] = 'Payload level displayname'
-            trans['PayloadOrganization'] = 'Payload level org'
-            transformed.append(trans)
+    # for payload in content:
+    #     for payload_type, data in payload.items():
+    #         trans = dict()
+    #
+    #         trans['PayloadType'] = payload_type
+    #
+    #         if 'PayloadUUID' in trans:
+    #             del trans['PayloadUUID']
+    #
+    #         embedded_payload_uuid = _content_to_uuid(data)
+    #
+    #         if 'PayloadIdentifier' in trans:
+    #             embedded_payload_id = trans['PayloadIdentifier']
+    #         else:
+    #             embedded_payload_id = "{}.{}".format(identifier, embedded_payload_uuid)
+    #
+    #         trans['PayloadIdentifier'] = embedded_payload_id
+    #         trans['PayloadUUID'] = embedded_payload_uuid
+    #         trans['PayloadEnabled'] = True
+    #         trans['PayloadVersion'] = 1
+    #
+    #         # if trans['PayloadType'] == 'com.apple.DirectoryService.managed':
+    #         #     _add_activedirectory_keys(data)
+    #
+    #         trans['PayloadDescription'] = 'Payload level description'
+    #         trans['PayloadDisplayName'] = 'Payload level displayname'
+    #         trans['PayloadOrganization'] = 'Payload level org'
+    #
+    #         transformed.append(dict(trans.items() + data.items()))
 
     return transformed
 
@@ -274,6 +300,8 @@ def generate(identifier, profile_uuid=None, **kwargs):
         elif k == 'removaldisallowed':
             document['PayloadRemovalDisallowed'] = (v is True)
 
+    from pprint import pprint
+    pprint(document)
     plist_content = plistlib.writePlistToString(document)
     return plist_content
 

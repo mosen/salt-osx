@@ -137,39 +137,7 @@ def _transform_content(content, identifier):
 
     transformed = [_transform_payload(payload, identifier) for payload in content]
 
-    # for payload in content:
-    #     for payload_type, data in payload.items():
-    #         trans = dict()
-    #
-    #         trans['PayloadType'] = payload_type
-    #
-    #         if 'PayloadUUID' in trans:
-    #             del trans['PayloadUUID']
-    #
-    #         embedded_payload_uuid = _content_to_uuid(data)
-    #
-    #         if 'PayloadIdentifier' in trans:
-    #             embedded_payload_id = trans['PayloadIdentifier']
-    #         else:
-    #             embedded_payload_id = "{}.{}".format(identifier, embedded_payload_uuid)
-    #
-    #         trans['PayloadIdentifier'] = embedded_payload_id
-    #         trans['PayloadUUID'] = embedded_payload_uuid
-    #         trans['PayloadEnabled'] = True
-    #         trans['PayloadVersion'] = 1
-    #
-    #         # if trans['PayloadType'] == 'com.apple.DirectoryService.managed':
-    #         #     _add_activedirectory_keys(data)
-    #
-    #         trans['PayloadDescription'] = 'Payload level description'
-    #         trans['PayloadDisplayName'] = 'Payload level displayname'
-    #         trans['PayloadOrganization'] = 'Payload level org'
-    #
-    #         transformed.append(dict(trans.items() + data.items()))
-
     return transformed
-
-
 
 
 def items():
@@ -300,8 +268,6 @@ def generate(identifier, profile_uuid=None, **kwargs):
         elif k == 'removaldisallowed':
             document['PayloadRemovalDisallowed'] = (v is True)
 
-    from pprint import pprint
-    pprint(document)
     plist_content = plistlib.writePlistToString(document)
     return plist_content
 

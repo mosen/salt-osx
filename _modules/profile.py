@@ -167,7 +167,7 @@ def items():
     return profiles
 
 
-def installed(identifier):
+def exists(identifier):
     '''
     Determine whether a profile with the given identifier is installed.
     Returns True or False

@@ -105,7 +105,11 @@ def managed(name, enabled=True, **kwargs):
     # Not all property list values can simply be compared, some values need munging before the comparison. eg.privileges
     current_plist = __salt__['plist.read'](_PATHS['preferences'])
     service_is_enabled = __salt__['ard.active']()
-    all_users_privs = __salt__['ard.naprivs_list'](current_plist['ARD_AllLocalUsersPrivs'])
+    if 'ARD_AllLocalUsersPrivs' in current_plist:
+        all_users_privs = __salt__['ard.naprivs_list'](current_plist['ARD_AllLocalUsersPrivs'])
+    else:
+        all_users_privs = list()
+
     vnc_password = __salt__['ard.vncpw']()
     directory_groups = current_plist['DirectoryGroupList'] if 'DirectoryGroupList' in current_plist else list()
 

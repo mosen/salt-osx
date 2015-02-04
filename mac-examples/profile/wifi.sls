@@ -7,12 +7,13 @@ com.github.mosen.salt-osx.wifi.alacarte:
     - organization: Salt-OSX
     - content:
       - PayloadType: com.apple.wifi.managed
-        SSID_STR: salt
         HIDDEN_NETWORK: True
         AutoJoin: True
         ProxyType: None
-        EncryptionType: WPA
-        #AuthenticationMethod: ""
+        EncryptionType: WPA2
+#        SetupModes:
+#          -
+#        AuthenticationMethod: ""
         Interface: BuiltInWireless
-        # WPA Encryption Fields
+        SSID_STR: salt
         Password: saltstack

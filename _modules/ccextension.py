@@ -29,7 +29,7 @@ def __virtual__():
     if EXMANCMD is not None and os.path.exists(EXMANCMD):
         return __virtualname__
     else:
-        return None
+        return False
 
 
 def items():

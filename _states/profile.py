@@ -59,9 +59,9 @@ def installed(name, **kwargs):
            'changes': {},
            'comment': ''}
 
-    installed = __salt__['profile.installed'](name)
+    exists = __salt__['profile.exists'](name)
 
-    if installed:
+    if exists:
         ret['comment'] = 'Profile already installed with identifier: {0}'.format(name)
         return ret
 
@@ -71,14 +71,55 @@ def installed(name, **kwargs):
         **kwargs
     )
 
-    log.debug('Generated mobileconfig follows:')
-    log.debug(content)
+    mcpath = salt.utils.mkstemp('mobileconfig', 'salt', None, True)
+    f = open(mcpath, "w")
+    f.write(content)
+    f.close()
+
+    log.debug('Wrote .mobileconfig in secure temporary location: {}'.format(mcpath))
 
     if __opts__['test']:
         ret['result'] = None
         ret['comment'] = 'New profile would have been generated, property list follows: {0}'.format(content)
         return ret
     else:
-        ret['result'] = None
-        ret['comment'] = 'Functionality not yet implemented!'
+        success = __salt__['profile.install'](mcpath)
+        ret['result'] = success
+        if success:
+            ret['comment'] = 'Profile with identifier:{0} installed successfully.'.format(name)
+        else:
+            ret['comment'] = 'Failed to install profile with identifier:{0}'.format(name)
+
         return ret
+
+
+def absent(name):
+    '''
+    Remove the configuration profile with the specified identifier.
+    '''
+    ret = {'name': name,
+           'result': True,
+           'changes': {},
+           'comment': ''}
+
+    exists = __salt__['profile.exists'](name)
+
+    if not exists:
+        ret['comment'] = 'Profile is already absent'
+        return ret
+
+    if __opts__['test']:
+        ret['result'] = None
+        ret['comment'] = 'Profile with identifier: {0} would have been removed.'.format(name)
+        return ret
+    else:
+        success = __salt__['profile.remove'](name)
+        ret['result'] = success
+        if success:
+            ret['comment'] = 'Profile with identifier: {0} successfully removed'.format(name)
+        else:
+            ret['comment'] = 'Failed to remove profile with identifier: {0}'.format(name)
+
+        return ret
+
+

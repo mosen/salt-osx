@@ -3,12 +3,20 @@
 Manage Mac OSX local directory passwords and policies.
 
 Note that it is usually better to apply password policies through the creation of a configuration profile.
+
+Tech Notes:
+Usually when a password is changed by the system, there's a responsibility to check the hash list and generate hashes
+for each. Many osx password changing scripts/modules only deal with the SHA-512 PBKDF2 hash when working with the local
+node.
 '''
 from __future__ import absolute_import
 
 import os
 import base64
 import salt.utils
+import string
+import binascii
+import tempfile
 
 try:
     from passlib.utils import pbkdf2, ab64_encode, ab64_decode
@@ -43,6 +51,30 @@ def _pl_salted_sha512_pbkdf2_from_string(strvalue, salt_bin=None, iterations=100
     digest_bin = pbkdf2.pbkdf2(strvalue, salt_bin, iterations, key_length, hmac_sha512)
 
     return digest_bin, salt_bin, iterations
+
+def read_shadowhash(name):
+    '''
+    Read the existing hash for the named user.
+
+    name
+        The username associated with the local directory user.
+    '''
+    # Note: I've tried as best I could to keep third party dependencies out of this module.
+    # You could just as easily use PyObjC or plistlib, but I felt that portability was important.
+    tmpdir = tempfile.mkdtemp('.shadowhash')
+    tmpfile = os.path.join(tmpdir, 'shadowhash.plist')
+
+    # We have to strip the output string, convert hex back to binary data, read that plist and get our specific
+    # key/value property to find the hash. I.E there's a lot of unwrapping to do.
+    data = __salt__['cmd.run']('/usr/bin/dscl . read /Users/{0} ShadowHashData'.format(name))
+    parts = string.split(data, '\n')
+    plist_hex = string.replace(parts[1], ' ', '')
+    f = file(tmpfile, 'w')
+    f.write(binascii.unhexlify(plist_hex))
+    f.close()
+    return tmpfile
+
+
 
 def info(name):
     '''

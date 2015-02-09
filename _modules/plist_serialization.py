@@ -34,6 +34,7 @@ try:
         NSPropertyListSerialization, \
         NSPropertyListMutableContainers, \
         NSPropertyListXMLFormat_v1_0, \
+        NSPropertyListBinaryFormat_v1_0, \
         NSNumber, \
         NSString, \
         NSMutableDictionary
@@ -145,7 +146,8 @@ def _valueToNSObject(value, nstype):
         'string': lambda v: NSString.stringWithUTF8String_(v),
         'int': lambda v: NSNumber.numberWithInt_(v),
         'float': lambda v: NSNumber.numberWithFloat_(v),
-        'bool': lambda v: True if v == 'true' else False
+        'bool': lambda v: True if v == 'true' else False,
+        'data': lambda v: NSData.initWithBytes_length_(v, len(v))
     }[nstype](value)
 
 def _objectsForKeyDict(dict, keys, collector):
@@ -287,6 +289,28 @@ def _removeObjectForKeyList(dict, keys):
         # return
         return dict.removeObjectForKey_(key)
 
+
+def gen_string(data, format='xml'):
+    '''
+    Take a python struct (normally a dict) and generate a string representing a property list.
+
+    data
+        Python data structure (dict)
+
+    format (default 'xml')
+        Generate format, 'xml' or 'binary'
+    '''
+    serialization = NSPropertyListXMLFormat_v1_0 if format == 'xml' else NSPropertyListBinaryFormat_v1_0
+    plistData, error = \
+        NSPropertyListSerialization.dataFromPropertyList_format_errorDescription_(
+            data, serialization, None)
+    if error:
+        error = error.encode('ascii', 'ignore')
+        log.debug('Error writing plist')
+        log.debug(error)
+        raise NSPropertyListSerializationException(error)
+    else:
+        return plistData
 
 def parse_string(data):
     '''

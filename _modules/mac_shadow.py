@@ -9,6 +9,9 @@ Usually when a password is changed by the system, there's a responsibility to ch
 for each. Many osx password changing scripts/modules only deal with the SHA-512 PBKDF2 hash when working with the local
 node.
 '''
+# Authentication concepts reference:
+# https://developer.apple.com/library/mac/documentation/Networking/Conceptual/Open_Directory/openDirectoryConcepts/openDirectoryConcepts.html#//apple_ref/doc/uid/TP40000917-CH3-CIFCAIBB
+
 from __future__ import absolute_import
 
 import os
@@ -16,7 +19,6 @@ import base64
 import salt.utils
 import string
 import binascii
-import tempfile
 
 try:
     from passlib.utils import pbkdf2, ab64_encode, ab64_decode
@@ -52,27 +54,82 @@ def _pl_salted_sha512_pbkdf2_from_string(strvalue, salt_bin=None, iterations=100
 
     return digest_bin, salt_bin, iterations
 
-def read_shadowhash(name):
+
+def _extract_authdata(item):
+    '''
+    Extract version, authority tag, and authority data from a single array item of AuthenticationAuthority
+
+    item
+        The NSString instance representing the authority string
+
+    returns
+        version (default 1.0.0), tag, data as a tuple
+    '''
+    parts = string.split(item, ';')
+
+    if not parts[0]:
+        parts[0] = '1.0.0'
+
+    return {
+        'version': parts[0],
+        'tag': parts[1],
+        'data': parts[2::]
+    }
+
+
+def authorities(name):
+    '''
+    Read the list of authentication authorities for the given user.
+
+    name
+        Short username of the local user.
+    '''
+    authorities_plist = __salt__['cmd.run']('/usr/bin/dscl -plist . read /Users/{0} AuthenticationAuthority'.format(name))
+    plist = __salt__['plist.parse_string'](authorities_plist)
+    authorities_list = [_extract_authdata(item) for item in plist.objectForKey_('dsAttrTypeStandard:AuthenticationAuthority')]
+
+    return authorities_list
+
+
+def user_shadowhash(name):
     '''
     Read the existing hash for the named user.
+    Returns a dict with the ShadowHash content for the named user in the form:
+
+    { 'HASH_TYPE': { 'entropy': <base64 hash>, 'salt': <base64 salt>, 'iterations': <n iterations> }}
+
+    Hash types are hard coded to SALTED-SHA-PBKDF2, CRAM-MD5, NT, RECOVERABLE.
+    In future releases the AuthenticationAuthority property should be checked for the hash list
 
     name
         The username associated with the local directory user.
     '''
-    # Note: I've tried as best I could to keep third party dependencies out of this module.
-    # You could just as easily use PyObjC or plistlib, but I felt that portability was important.
-    tmpdir = tempfile.mkdtemp('.shadowhash')
-    tmpfile = os.path.join(tmpdir, 'shadowhash.plist')
 
     # We have to strip the output string, convert hex back to binary data, read that plist and get our specific
     # key/value property to find the hash. I.E there's a lot of unwrapping to do.
     data = __salt__['cmd.run']('/usr/bin/dscl . read /Users/{0} ShadowHashData'.format(name))
     parts = string.split(data, '\n')
     plist_hex = string.replace(parts[1], ' ', '')
-    f = file(tmpfile, 'w')
-    f.write(binascii.unhexlify(plist_hex))
-    f.close()
-    return tmpfile
+    plist_bin = binascii.unhexlify(plist_hex)
+
+    # plistlib is not used, because mavericks ships without binary plist support from plistlib.
+    plist = __salt__['plist.parse_string'](plist_bin)
+
+    pbkdf = plist.objectForKey_('SALTED-SHA512-PBKDF2')
+    cram_md5 = plist.objectForKey_('CRAM-MD5')
+    nt = plist.objectForKey_('NT')
+    recoverable = plist.objectForKey_('RECOVERABLE')
+
+    return {
+        'SALTED-SHA512-PBKDF2': {
+            'entropy': pbkdf.objectForKey_('entropy').base64EncodedStringWithOptions_(0),
+            'salt': pbkdf.objectForKey_('salt').base64EncodedStringWithOptions_(0),
+            'iterations': pbkdf.objectForKey_('iterations')
+        },
+        'CRAM-MD5': cram_md5.base64EncodedStringWithOptions_(0),
+        'NT': nt.base64EncodedStringWithOptions_(0),
+        'RECOVERABLE': recoverable.base64EncodedStringWithOptions_(0)
+    }
 
 
 
@@ -93,7 +150,7 @@ def info(name):
     pass
 
 
-def gen_password(password, salt=None, iterations=1000):
+def gen_password(password, salt=None, iterations=None):
     '''
     Generate hashed (PBKDF2-SHA512) password
     Returns a dict containing values for 'entropy', 'salt' and 'iterations'.
@@ -115,6 +172,9 @@ def gen_password(password, salt=None, iterations=1000):
         salt '*' mac_shadow.gen_password 'I_am_password'
         salt '*' mac_shadow.gen_password 'I_am_password' 'Ausrbk5COuB9V4ata6muoj+HPjA92pefPfbW9QPnv9M=' 23000
     '''
+    if iterations is None:
+        iterations = 1000
+
     if salt is None:
         salt_bin = os.urandom(32)
     else:
@@ -131,20 +191,69 @@ def gen_password(password, salt=None, iterations=1000):
     return result
 
 
+def set_password_hash(name, hashtype, hash, salt=None, iterations=None):
+    '''
+    Set the given hash as the shadow hash data for the named user.
+
+    name
+        The name of the local user, which is assumed to be in the local directory service.
+
+    hashtype
+        A valid hash type, one of: PBKDF2, CRAM-MD5, NT, RECOVERABLE
+
+    hash
+        The computed hash
+
+    salt (optional)
+        The salt to use, if applicable.
+
+    iterations
+        The number of iterations to use, if applicable.
+    '''
+    pass
+
+
 def set_password(name, password, salt=None, iterations=None):
     '''
-    Set the password for a named user. In Mac OSX 10.8 and later, the password hash,
-    its salt, and the number of iterations must be specified. To generate these from plain text
-    you may use the mac_shadow.gen_password execution module.
+    Set the password for a named user (insecure).
+    Use mac_shadow.set_password_hash to supply pre-computed hash values.
+
+    For the moment this sets only the PBKDF2-SHA512 salted hash.
+    To be a good citizen we should set every hash in the authority list.
+
+    name
+        The name of the local user, which is assumed to be in the local directory service.
+
+    password
+        The plaintext password to set (warning: insecure, used for testing)
+
+    salt
+        The salt to use, defaults to automatically generated.
+
+    iterations
+        The number of iterations to use, defaults to an automatically generated random number.
 
     CLI Example:
 
     .. code-block:: bash
 
-        salt '*' mac_shadow.set_password macuser 'PBKDF2-SHA512 hash (128 bytes)' 'Ausrbk5COuB9V4ata6muoj+HPjA92pefPfbW9QPnv9M=' 23000
+        salt '*' mac_shadow.set_password macuser macpassword
     '''
-    pass
+    # dscacheutil flush
+    hash = gen_password(password, salt, iterations)
+    current = user_shadowhash(name)
 
+    if hash['entropy'] == current['SALTED-SHA512-PBKDF2']['entropy']:
+        return False  # No change required
+
+    shadowhash_bin = __salt__['plist.gen_string'](hash, 'binary')
+
+    __salt__['plist.write_key']('/var/db/dslocal/nodes/Default/users/{0}.plist'.format(name),
+                                'ShadowHashData',
+                                'data',
+                                shadowhash_bin)
+
+    return True
 
 def del_password(name):
     '''
@@ -156,4 +265,4 @@ def del_password(name):
 
         salt '*' shadow.del_password username
     '''
-    pass
+    pass  # Re-order authentication authority and remove ShadowHashData

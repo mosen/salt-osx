@@ -65,7 +65,7 @@ def _extract_authdata(item):
     returns
         version (default 1.0.0), tag, data as a tuple
     '''
-    parts = string.split(item, ';')
+    parts = string.split(item, ';', 2)
 
     if not parts[0]:
         parts[0] = '1.0.0'
@@ -73,7 +73,7 @@ def _extract_authdata(item):
     return {
         'version': parts[0],
         'tag': parts[1],
-        'data': parts[2::]
+        'data': parts[2]
     }
 
 

@@ -147,7 +147,7 @@ def _valueToNSObject(value, nstype):
         'int': lambda v: NSNumber.numberWithInt_(v),
         'float': lambda v: NSNumber.numberWithFloat_(v),
         'bool': lambda v: True if v == 'true' else False,
-        'data': lambda v: NSData.initWithBytes_length_(v, len(v))
+        'data': lambda v: NSData.dataWithBytes_length_(v, len(v))
     }[nstype](value)
 
 def _objectsForKeyDict(dict, keys, collector):
@@ -374,7 +374,7 @@ def write_key(path, key, nstype, value):
         The path specification for the key to modify. A list of keys separated by a colon.
 
     nstype
-        The value type to write, one of 'string', 'int', 'float', 'bool'
+        The value type to write, one of 'string', 'int', 'float', 'bool', 'data'
 
     value
         The property value. If not specified it will be set to an empty value.
@@ -385,8 +385,10 @@ def write_key(path, key, nstype, value):
 
         salt '*' plist.write <path> <key> <nstype> [value]
     '''
+    log.debug('Reading original plist for modification at path: %s' % path)
     dataObject = _readPlist(path)
 
+    log.debug('Deriving key hierarchy from colon separated string')
     keys = key.split(':')
     if type(keys) is str:
         keys = list(keys)
@@ -394,7 +396,11 @@ def write_key(path, key, nstype, value):
     if dataObject is None:
         dataObject = NSMutableDictionary()
 
-    _setObjectForKeyList(dataObject, keys, _valueToNSObject(value, nstype))
+    log.debug('Performing string to NSObject conversion')
+    nsval = _valueToNSObject(value, nstype)
+    log.debug('Setting object value in hierarchy')
+    _setObjectForKeyList(dataObject, keys, nsval)
+    log.debug('Writing out plist to original path')
     _writePlist(dataObject, path)
 
 
@@ -416,6 +422,7 @@ def delete_key(path, key):
 
     if dataObject is None:
         return None  # None indicating no action was taken.
+
 
     keys = key.split(':')
     if type(keys) is str:

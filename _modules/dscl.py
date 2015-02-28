@@ -11,10 +11,19 @@ import salt.utils
 log = logging.getLogger(__name__)
 
 __virtualname__ = 'dscl'
-
+_DSCL_PATH = '/usr/bin/dscl'
+_DSCACHEUTIL = '/usr/bin/dscacheutil'
 
 def __virtual__():
     return __virtualname__ if salt.utils.is_darwin() else False
+
+
+def flushcache():
+    '''
+    Flush the Directory Service cache
+    :return:
+    '''
+    __salt__['cmd.run']('{0} -flushcache'.format(_DSCACHEUTIL))
 
 
 def search(datasource, path, key, value):
@@ -112,10 +121,10 @@ def create(datasource, path, key, value):
     return True if status == 0 else False
 
 
-def read(datasource, path, key=None):
+def read(datasource, path, key=None, **kwargs):
     '''
     Read an attribute (or all attributes) of a directory record.
-    Returns a dict containing a keys and values.
+    Returns a dict containing a keys and values. If either the specified record or attribute did not exist, returns None
 
     datasource
         The datasource to search. Usually either '.' (for the local directory) or '/Search'
@@ -129,22 +138,62 @@ def read(datasource, path, key=None):
         The attribute to get, the default (None) retrieves all attributes.
         If the key doesnt exist as an attribute of the record, this will return an empty dict
 
+    Keyword arguments:
+
+    format : 'string' or 'plist'
+        The return format for the command, string is Attribute: Value, and plist returns a property list with one
+        entry for the requested key
+
+    parse : true or false
+        If the format was 'string', attempt to parse attributes into a dictionary, defaults to True
+
     CLI Example:
 
     .. code-block:: bash
 
         salt '*' dscl.read . /Users/admin naprivs
     '''
-    result = __salt__['cmd.run_all'](
-        '/usr/bin/dscl {0} read {1} {2}'.format(datasource, path, key)
-    )
+    cmdargs = [_DSCL_PATH]
+
+    if kwargs.get('format') == 'plist':
+        cmdargs.append('-plist')
+
+    if datasource:
+        cmdargs.append(datasource)
+    else:
+        cmdargs.append('.')
+
+    cmdargs.append('read')
+    cmdargs.append(path)
+
+    if key is not None:
+        cmdargs.append(key)
+
+    result = __salt__['cmd.run_all'](' '.join(cmdargs))
 
     if result['retcode'] != 0:
         log.warning('Attempted to read a record that doesnt exist: {0}'.format(path))
-        return False
+        return None
 
     if re.search('No such key', result['stderr']):
         log.warning('Attempted to read a record attribute that doesnt exist: {0}'.format(key))
-        return {}
+        return None
 
-    return {parts[0]: parts[1] for parts in [line.split(': ') for line in result['stdout'].splitlines()]}
+    if kwargs.get('format') == 'string' and kwargs.get('parse', True) is True:
+        ret = {}
+        k = None
+
+        # If not using plist format, attribute values can be on the same line or following line
+        for line in result['stdout'].splitlines():
+            if k is not None:  # Push value for current multi-line property
+                ret[k] = line
+                k = None
+            elif line[-1] == ':':  # This line describes a property
+                k = line[:-1]
+            else:  # This line contains a property name and value
+                parts = line.split(': ')
+                ret[parts[0]] = parts[1]
+
+        return ret
+    else:
+        return result['stdout']

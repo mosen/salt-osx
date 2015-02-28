@@ -14,11 +14,16 @@ node.
 
 from __future__ import absolute_import
 
+import logging
+
+log = logging.getLogger(__name__)  # Start logging
+
 import os
 import base64
 import salt.utils
 import string
 import binascii
+import salt.exceptions
 
 try:
     from passlib.utils import pbkdf2, ab64_encode, ab64_decode
@@ -107,9 +112,19 @@ def user_shadowhash(name):
 
     # We have to strip the output string, convert hex back to binary data, read that plist and get our specific
     # key/value property to find the hash. I.E there's a lot of unwrapping to do.
-    data = __salt__['cmd.run']('/usr/bin/dscl . read /Users/{0} ShadowHashData'.format(name))
-    parts = string.split(data, '\n')
-    plist_hex = string.replace(parts[1], ' ', '')
+    data = __salt__['dscl.read']('.', '/Users/{0}'.format(name), 'ShadowHashData')
+
+    if data is None:
+        log.debug('No such record/attribute found, returning None')
+        return None
+
+    if 'dsAttrTypeNative:ShadowHashData' not in data:
+        raise salt.exceptions.SaltInvocationError(
+            'Expected to find ShadowHashData in user record: {0}'.format(name)
+        )
+
+
+    plist_hex = string.replace(data['dsAttrTypeNative:ShadowHashData'], ' ', '')
     plist_bin = binascii.unhexlify(plist_hex)
 
     # plistlib is not used, because mavericks ships without binary plist support from plistlib.
@@ -243,15 +258,23 @@ def set_password(name, password, salt=None, iterations=None):
     hash = gen_password(password, salt, iterations)
     current = user_shadowhash(name)
 
-    if hash['entropy'] == current['SALTED-SHA512-PBKDF2']['entropy']:
-        return False  # No change required
+    log.debug('Current ShadowHashData follows')
+    if current:
+        log.debug(current)
+
+        if hash['entropy'] == current['SALTED-SHA512-PBKDF2']['entropy']:
+            return False  # No change required
+    else:
+        log.debug('No Shadow Hash Data exists for User: {0}'.format(name))
 
     shadowhash_bin = __salt__['plist.gen_string'](hash, 'binary')
 
-    __salt__['plist.write_key']('/var/db/dslocal/nodes/Default/users/{0}.plist'.format(name),
+    __salt__['dscl.flushcache']()
+    __salt__['plist.append_key']('/var/db/dslocal/nodes/Default/users/{0}.plist'.format(name),
                                 'ShadowHashData',
                                 'data',
                                 shadowhash_bin)
+    __salt__['dscl.flushcache']()
 
     return True
 

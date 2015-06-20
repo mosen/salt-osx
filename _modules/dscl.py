@@ -179,7 +179,7 @@ def read(datasource, path, key=None, **kwargs):
         log.warning('Attempted to read a record attribute that doesnt exist: {0}'.format(key))
         return None
 
-    if kwargs.get('format') == 'string' and kwargs.get('parse', True) is True:
+    if kwargs.get('format', 'string') == 'string' and kwargs.get('parse', True) is True:
         ret = {}
         k = None
 

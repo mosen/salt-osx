@@ -39,7 +39,8 @@ try:
         NSNumber, \
         NSString, \
         NSMutableDictionary, \
-        NSMutableArray
+        NSMutableArray, \
+        NSMutableData
 
     HAS_LIBS = True
 except ImportError:
@@ -129,7 +130,7 @@ def _value_to_nsobject(value, nstype):
         'int': lambda v: NSNumber.numberWithInt_(v),
         'float': lambda v: NSNumber.numberWithFloat_(v),
         'bool': lambda v: True if v == 'true' else False,
-        'data': lambda v: NSData.dataWithBytes_length_(v, len(v))
+        'data': lambda v: NSMutableData.dataWithLength_(len(value)).initWithBase64EncodedString_options_(value)
     }[nstype](value)
 
 def _objects_for_dict(dict, keys, collector):

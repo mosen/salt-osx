@@ -112,7 +112,10 @@ def user_shadowhash(name):
 
     # We have to strip the output string, convert hex back to binary data, read that plist and get our specific
     # key/value property to find the hash. I.E there's a lot of unwrapping to do.
+    log.debug('Reading ShadowHashData')
     data = __salt__['dscl.read']('.', '/Users/{0}'.format(name), 'ShadowHashData')
+    log.debug('Got ShadowHashData')
+    log.debug(data)
 
     if data is None:
         log.debug('No such record/attribute found, returning None')
@@ -130,22 +133,32 @@ def user_shadowhash(name):
     # plistlib is not used, because mavericks ships without binary plist support from plistlib.
     plist = __salt__['plist.parse_string'](plist_bin)
 
+    log.debug(plist)
+
     pbkdf = plist.objectForKey_('SALTED-SHA512-PBKDF2')
     cram_md5 = plist.objectForKey_('CRAM-MD5')
     nt = plist.objectForKey_('NT')
     recoverable = plist.objectForKey_('RECOVERABLE')
 
-    return {
-        'SALTED-SHA512-PBKDF2': {
+    hashes = {}
+
+    if pbkdf is not None:
+        hashes['SALTED-SHA512-PBKDF2'] = {
             'entropy': pbkdf.objectForKey_('entropy').base64EncodedStringWithOptions_(0),
             'salt': pbkdf.objectForKey_('salt').base64EncodedStringWithOptions_(0),
             'iterations': pbkdf.objectForKey_('iterations')
-        },
-        'CRAM-MD5': cram_md5.base64EncodedStringWithOptions_(0),
-        'NT': nt.base64EncodedStringWithOptions_(0),
-        'RECOVERABLE': recoverable.base64EncodedStringWithOptions_(0)
-    }
+        }
 
+    if cram_md5 is not None:
+        hashes['CRAM-MD5'] = cram_md5.base64EncodedStringWithOptions_(0)
+
+    if nt is not None:
+        hashes['NT'] = nt.base64EncodedStringWithOptions_(0)
+
+    if recoverable is not None:
+        hashes['RECOVERABLE'] = recoverable.base64EncodedStringWithOptions_(0)
+
+    return hashes
 
 
 def info(name):
@@ -203,7 +216,7 @@ def gen_password(password, salt=None, iterations=None):
         'iterations': used_iterations
     }
 
-    return result
+    return {'SALTED-SHA512-PBKDF2': result}
 
 
 def set_password_hash(name, hashtype, hash, salt=None, iterations=None):
@@ -225,8 +238,35 @@ def set_password_hash(name, hashtype, hash, salt=None, iterations=None):
     iterations
         The number of iterations to use, if applicable.
     '''
-    pass
+    # current_hashes = user_shadowhash(name)
+    # current_pbkdf2 = current_hashes['SALTED-SHA512-PBKDF2']
+    #
+    # log.debug('Current ShadowHashdata follows')
+    # log.debug(current_hashes)
 
+    shd = {'SALTED-SHA512-PBKDF2': {'entropy': hash, 'salt': salt, 'iterations': iterations}}
+    log.debug('Encoding following dict as bplist')
+    log.debug(shd)
+
+    # if shd['SALTED-SHA512-PBKDF2']['entropy'] == current_pbkdf2['entropy']:
+    #     log.debug('Entropy IS EQUAL!')
+
+    shd_bplist = __salt__['plist.gen_string'](shd, 'binary')
+    shd_bplist_b64 = base64.b64encode(shd_bplist, '+/')
+
+    log.debug('Flushing directory services cache')
+    __salt__['dscl.flushcache']()
+
+    log.debug('Writing directly to dslocal')
+    __salt__['plist.append_key']('/var/db/dslocal/nodes/Default/users/{0}.plist'.format(name),
+                                 'ShadowHashData',
+                                 'data',
+                                 shd_bplist_b64)
+
+    log.debug('Flushing directory services cache')
+    __salt__['dscl.flushcache']()
+
+    return True
 
 def set_password(name, password, salt=None, iterations=None):
     '''
@@ -254,27 +294,27 @@ def set_password(name, password, salt=None, iterations=None):
 
         salt '*' mac_shadow.set_password macuser macpassword
     '''
-    # dscacheutil flush
+    #current_hashes = user_shadowhash(name)
+    #current_pbkdf2 = current_hashes['SALTED-SHA512-PBKDF2']
+    # hash = gen_password(password, current_pbkdf2['salt'], current_pbkdf2['iterations'])
     hash = gen_password(password, salt, iterations)
-    current = user_shadowhash(name)
+    #
+    # log.debug('Current ShadowHashData follows')
+    # if current_hashes:
+    #     log.debug(current_hashes)
+    #
+    #     if hash['SALTED-SHA512-PBKDF2']['entropy'] == current_pbkdf2['entropy']:
+    #         return False  # No change required
+    # else:
+    #     log.debug('No Shadow Hash Data exists for User: {0}'.format(name))
 
-    log.debug('Current ShadowHashData follows')
-    if current:
-        log.debug(current)
-
-        if hash['entropy'] == current['SALTED-SHA512-PBKDF2']['entropy']:
-            return False  # No change required
-    else:
-        log.debug('No Shadow Hash Data exists for User: {0}'.format(name))
-
-    shadowhash_bin = __salt__['plist.gen_string'](hash, 'binary')
-
-    __salt__['dscl.flushcache']()
-    __salt__['plist.append_key']('/var/db/dslocal/nodes/Default/users/{0}.plist'.format(name),
-                                'ShadowHashData',
-                                'data',
-                                shadowhash_bin)
-    __salt__['dscl.flushcache']()
+    set_password_hash(
+        name,
+        'PBKDF2',
+        hash['SALTED-SHA512-PBKDF2']['entropy'],
+        hash['SALTED-SHA512-PBKDF2']['salt'],
+        hash['SALTED-SHA512-PBKDF2']['iterations']
+    )
 
     return True
 

@@ -4,6 +4,9 @@ Enable or disable Bluetooth and Bluetooth Discoverability via BluetoothIO Framew
 Credit to Frederik Seiffert for original blueutil source.
 Credit to github/toy for discoverable state feature.
 
+NOTE: In current versions of Mac OS X, discoverability is controlled by whether the Bluetooth System
+Preferences pane is open.
+
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
 :depends:       ctypes

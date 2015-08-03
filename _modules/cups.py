@@ -7,6 +7,10 @@ import re
 import logging
 
 log = logging.getLogger(__name__)
+lpadmin_path = utils.which('lpadmin')
+lpstat_path = utils.which('lpstat')
+lpinfo_path = utils.which('lpinfo')
+lpoptions_path = utils.which('lpoptions')
 
 from salt import utils
 
@@ -15,7 +19,7 @@ def __virtual__():
     '''
     Only load if lpadmin exists on the system
     '''
-    return True if utils.which('lpadmin') else False
+    return True if lpadmin_path else False
 
 
 def printers():
@@ -33,7 +37,7 @@ def printers():
 
         salt '*' cups.printers
     '''
-    printers_long = __salt__['cmd.run']('lpstat -l -p').splitlines()
+    printers_long = __salt__['cmd.run']('{0} -l -p'.format(lpstat_path)).splitlines()
     printers = dict()
     current = None
     name = None
@@ -62,7 +66,7 @@ def printers():
     printers[name] = current
 
     # Now fetch device uri
-    printer_uris = __salt__['cmd.run']('lpstat -v').splitlines()
+    printer_uris = __salt__['cmd.run']('{0} -v'.format(lpstat_path)).splitlines()
 
     for line in printer_uris:
         matches = re.match(r"device for ([^:]*):\s(.*)", line)
@@ -113,7 +117,7 @@ def add(name, description, uri, **kwargs):
         salt '*' cups.add example_printer 'Example Printer Description' 'lpd://10.0.0.1' model='drv:///sample.drv/generic.ppd' location='Office Corner'
     '''
     result = {}
-    cmd = 'lpadmin -p {0} -E -D "{1}" -v "{2}"'.format(name, description, uri)
+    cmd = '{0} -p {1} -E -D "{2}" -v "{3}"'.format(lpadmin_path, name, description, uri)
 
     # Can't combine model and interface/ppd
     if 'model' in kwargs:
@@ -157,7 +161,7 @@ def remove(name):
 
         salt '*' cups.remove example_printer
     '''
-    removed = __salt__['cmd.retcode']('lpadmin -x {}'.format(name))
+    removed = __salt__['cmd.retcode']('{0} -x {1}'.format(lpadmin_path, name))
     return removed == 0
 
 
@@ -171,7 +175,7 @@ def models():
 
         salt '*' cups.models
     '''
-    return __salt__['cmd.run_stdout']('lpinfo -m')
+    return __salt__['cmd.run_stdout']('{0} -m'.format(lpinfo_path))
 
 
 def uris():
@@ -184,7 +188,7 @@ def uris():
 
         salt '*' cups.uris
     '''
-    return __salt__['cmd.run_stdout']('lpinfo -v')
+    return __salt__['cmd.run_stdout']('{0} -v'.format(lpinfo_path))
 
 
 def options(name):
@@ -197,7 +201,7 @@ def options(name):
 
         salt '*' cups.options Printer_Name
     '''
-    options_long = __salt__['cmd.run']('lpoptions -p {} -l'.format(name)).splitlines()
+    options_long = __salt__['cmd.run']('{0} -p {1} -l'.format(lpoptions_path, name)).splitlines()
 
     options = list()
 

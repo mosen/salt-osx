@@ -19,7 +19,11 @@ def __virtual__():
     '''
     Only load if lpadmin exists on the system
     '''
-    return True if lpadmin_path else False
+    if not lpadmin_path:
+        log.warning("cups module not loading because lpadmin not found in path")
+        return False
+    else:
+        return True
 
 
 def printers():

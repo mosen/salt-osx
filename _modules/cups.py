@@ -23,6 +23,7 @@ def __virtual__():
         log.warning("cups module not loading because lpadmin not found in path")
         return False
     else:
+        log.info("cups module is available at path: {}".format(lpadmin_path))
         return True
 
 

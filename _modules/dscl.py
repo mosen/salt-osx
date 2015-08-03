@@ -149,6 +149,7 @@ def read(datasource, path, key=None):
 
     return {parts[0]: parts[1] for parts in [line.split(': ') for line in result['stdout'].splitlines()]}
 
+
 def delete(datasource, path, key=None, value=None):
     '''
     Delete a record, record attribute, or a single value from a record attribute.

@@ -200,6 +200,9 @@ def uris():
 def options(name):
     '''
     Parse model specific options for the given printer.
+    NOTE:
+        lpoptions -p <printer> -l returns PPD options set on the queue
+        lpoptions -l -p <printer> returns all possible PPD options with defaults shown as selected.
 
     CLI Example:
 
@@ -207,7 +210,7 @@ def options(name):
 
         salt '*' cups.options Printer_Name
     '''
-    options_long = __salt__['cmd.run']('{0} -p {1} -l'.format(lpoptions_path, name)).splitlines()
+    options_long = __salt__['cmd.run']('{0} -l -p {1}'.format(lpoptions_path, name)).splitlines()
 
     options = list()
 

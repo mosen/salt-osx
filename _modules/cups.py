@@ -14,6 +14,7 @@ lpoptions_path = utils.which('lpoptions')
 
 from salt import utils
 
+__virtualname__ = 'cups'
 
 def __virtual__():
     '''
@@ -24,7 +25,7 @@ def __virtual__():
         return False
     else:
         log.info("cups module is available at path: {}".format(lpadmin_path))
-        return True
+        return __virtualname__
 
 
 def printers():

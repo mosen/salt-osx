@@ -5,14 +5,14 @@ Add, modify, remove queues from the Common Unix Printing System
 
 import re
 import logging
+from salt.utils import which
 
 log = logging.getLogger(__name__)
-lpadmin_path = utils.which('lpadmin')
-lpstat_path = utils.which('lpstat')
-lpinfo_path = utils.which('lpinfo')
-lpoptions_path = utils.which('lpoptions')
 
-from salt import utils
+lpadmin_path = which('lpadmin')
+lpstat_path = which('lpstat')
+lpinfo_path = which('lpinfo')
+lpoptions_path = which('lpoptions')
 
 __virtualname__ = 'cups'
 

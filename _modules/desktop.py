@@ -75,44 +75,7 @@ def open_file(path):
     return status
 
 
-def launch(application):
-    '''
-    Open an Application by name.
-    This does not need to be the full path to the application, and does not need to have an .app extension.
 
-    CLI Example::
-
-        salt '*' desktop.launch 'TextEdit'
-    '''
-    workSpace = NSWorkspace.sharedWorkspace()
-    status = workSpace.launchApplication_(application)
-    return status
-
-
-def processes():
-    '''
-    Get a list of running processes in the user session
-
-    TODO: optional get by bundle ID
-    TODO: optional get hidden
-    '''
-    workSpace = NSWorkspace.sharedWorkspace()
-    appList = workSpace.runningApplications()
-
-    names = [app.localizedName() for app in appList]
-
-    names.sort()
-    return names
-
-
-def frontmost():
-    '''
-    Get the name of the frontmost application
-    '''
-    workSpace = NSWorkspace.sharedWorkspace()
-    app = workSpace.frontmostApplication()
-
-    return app.localizedName()
 
 
 def _screenImageOptions(screen):

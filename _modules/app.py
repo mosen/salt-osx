@@ -22,9 +22,11 @@ __virtualname__ = 'app'
 HAS_LIBS = False
 try:
     from Cocoa import NSWorkspace
+
     HAS_LIBS = True
 except ImportError:
     log.debug('Execution module not suitable because one or more imports failed.')
+
 
 def __virtual__():
     '''
@@ -71,6 +73,7 @@ def force_quit(appname, blocking=False):
 
     return None
 
+
 def launch(application):
     '''
     Open an Application by name.
@@ -109,4 +112,3 @@ def frontmost():
     app = workSpace.frontmostApplication()
 
     return app.localizedName()
-

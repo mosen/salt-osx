@@ -69,7 +69,12 @@ def printers():
         if re.search(r"\tLocation:", line):
             current['location'] = re.match(r"\tLocation:\s(.*)", line).group(1)
 
-    printers[name] = current
+    if current is not None:
+        printers[name] = current
+
+    # No printers available
+    if len(printers.keys()) == 0:
+        return None
 
     # Now fetch device uri
     printer_uris = __salt__['cmd.run']('{0} -v'.format(lpstat_path)).splitlines()

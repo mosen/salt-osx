@@ -103,7 +103,7 @@ def present(name, description, uri, **kwargs):
 
     printers = __salt__['cups.printers']()
 
-    if name not in printers:
+    if printers is None or name not in printers:
         '''Just add'''
         changes['new'][name] = printerkwargs
         create = True
@@ -165,7 +165,7 @@ def absent(name):
 
     printers = __salt__['cups.printers']()
 
-    if name not in printers:
+    if printers is None or name not in printers:
         ret['result'] = None
         ret['comment'] = 'No changes required'
         return ret

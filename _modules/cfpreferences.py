@@ -16,11 +16,14 @@ log = logging.getLogger(__name__)  # Start logging
 
 HAS_LIBS = False
 try:
-    from Foundation import CFPreferencesCopyValue, \
+    from CoreFoundation import CFPreferencesCopyValue, \
         CFPreferencesSetValue, \
         CFPreferencesSynchronize, \
+        CFPreferencesCopyMultiple, \
         kCFPreferencesAnyUser, \
-        kCFPreferencesAnyHost
+        kCFPreferencesAnyHost, \
+        kCFPreferencesCurrentUser, \
+        kCFPreferencesCurrentHost
 
     HAS_LIBS = True
 except ImportError:
@@ -41,7 +44,7 @@ def __virtual__():
     return __virtualname__
 
 
-def read(appid, key, byhost=False):
+def read(appid, key):
     '''
     Get the preference value for an Application ID and requested key.
 
@@ -51,18 +54,15 @@ def read(appid, key, byhost=False):
     key
         Preference key to read
 
-    byhost : False
-        Whether the preference is for the current host
-
     .. code-block:: bash
 
         salt '*' cfpreferences.read com.apple.Finder NSNavLastRootDirectory
     '''
-    value = CFPreferencesCopyValue(key, appid, kCFPreferencesAnyUser, kCFPreferencesAnyHost)
+    value = CFPreferencesCopyValue(key, appid, kCFPreferencesAnyUser, kCFPreferencesCurrentHost)
     return value
 
 
-def write(appid, key, value, byhost=False):
+def write(appid, key, value):
     '''
     Write a simple preference value.
 
@@ -72,15 +72,12 @@ def write(appid, key, value, byhost=False):
     key
         Preference key to read
 
-    byhost : False
-        Whether the preference is for the current host
-
     .. code-block:: bash
 
         salt '*' cfpreferences.write com.example.test example a
 
     '''
-    didSync = CFPreferencesSynchronize(appid, kCFPreferencesAnyUser, kCFPreferencesAnyHost)
-    CFPreferencesSetValue(key, value, appid, kCFPreferencesAnyUser, kCFPreferencesAnyHost)
-    didSync = CFPreferencesSynchronize(appid, kCFPreferencesAnyUser, kCFPreferencesAnyHost)
+    # didSync = CFPreferencesSynchronize(appid, kCFPreferencesAnyUser, kCFPreferencesCurrentHost)
+    CFPreferencesSetValue(key, value, appid, kCFPreferencesAnyUser, kCFPreferencesCurrentHost)
+    didSync = CFPreferencesSynchronize(appid, kCFPreferencesAnyUser, kCFPreferencesCurrentHost)
     return didSync

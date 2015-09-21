@@ -110,15 +110,31 @@ def present(name, description, uri, **kwargs):
     else:
         '''Modify only changed attributes'''
         current_printer = printers[name]
+        current_ppd_options = __salt__['cups.options'](name)
+
         changes['new'][name] = {}
 
         for k, v in printerkwargs.iteritems():
+            if k == 'options':
+                continue  # Options will be processed separately
             if k in ignored_updates:
                 continue
             if k not in current_printer:
                 changes['new'][name][k] = v
             elif current_printer[k] != v:
                 changes['new'][name][k] = v
+
+        # TODO: Clean this up so you dont need n^2 iterations
+        if 'options' in printerkwargs:
+            for kopt, vopt in printerkwargs['options'].iteritems():
+                for currentopt in current_ppd_options:
+                    if currentopt['name'] == kopt and currentopt['selected'] != vopt:
+                        log.debug('PPD Option {0} changed, OLD:{1}, NEW:{2}'.format(kopt, currentopt['selected'], vopt))
+                        if 'options' not in changes['new']:
+                            changes['new'][name]['options'] = dict()
+                        changes['new'][name]['options'][kopt] = vopt
+
+
 
     if __opts__['test']:
         if len(changes['new'][name].keys()) == 0:

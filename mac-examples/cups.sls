@@ -8,8 +8,8 @@ Example_Printer:
     - location: 'Doesnt Exist'
     - model: 'drv:///sample.drv/laserjet.ppd'
     - options:
-        PageSize: Letter
-        ColorModel: Gray
+        PageSize: A4
+        InputSlot: Tray2
 
 
 #Example_Printer:

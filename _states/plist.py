@@ -49,11 +49,11 @@ def managed_keys(name, **keys):
         ret['changes'] = changes
 
     if __opts__['test'] == True:
-        ret['comment'] = 'Values will be changed' if changed else 'No changes will be required'
-        ret['result'] = None
+        ret['comment'] = 'Values will be changed' if changed else 'File is in the correct state'
+        ret['result'] = None if changed else True
     else:
-        ret['comment'] = 'Values changed' if changed else 'No changes required'
-        ret['result'] = True if changed else None
+        ret['comment'] = 'Values changed' if changed else 'File is in the correct state'
+        ret['result'] = True
 
     return ret
 
@@ -78,10 +78,10 @@ def absent_keys(name, **keys):
         ret['changes'] = changes
 
     if __opts__['test'] == True:
-        ret['comment'] = 'Keys will be removed' if changed else 'No keys will be removed'
-        ret['result'] = None
+        ret['comment'] = 'Keys will be removed' if changed else 'File is in the correct state'
+        ret['result'] = None if changed else True
     else:
-        ret['comment'] = 'Keys removed' if changed else 'No keys found for removal'
-        ret['result'] = True if changed else None
+        ret['comment'] = 'Keys removed' if changed else 'File is in the correct state'
+        ret['result'] = True
 
     return ret

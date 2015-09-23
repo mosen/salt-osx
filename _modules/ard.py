@@ -202,7 +202,7 @@ def active():
 
     # Is the ARDAgent process running?
     # TODO: OSX implementation ps.pgrep
-    if not __salt__['cmd.retcode']('ps axc | grep ARDAgent > /dev/null') == 0:
+    if not __salt__['cmd.retcode']('ps axc | grep ARDAgent > /dev/null', python_shell=False) == 0:
         log.debug('ARDAgent process is not running.')
         return False
 

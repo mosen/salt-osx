@@ -184,7 +184,19 @@ def url():
     pass
 
 
-def set_url():
-    pass
+# On Yosemite, the Software Update Catalog URL can be set by the `softwareupdate` CLI
+# On earlier systems, the preferences must be modified.
 
+def set_url(catalog_url):
+    '''
+    Set the Software Update Catalog URL
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' swupd.set_url http://swupd.local:8888/index.sucatalog
+    '''
+    out = __salt__['cmd.run']('/usr/sbin/softwareupdate --set-catalog {0}'.format(catalog_url))
+    return out
 

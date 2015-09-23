@@ -196,7 +196,7 @@ def read(datasource, path, key=None, **kwargs):
 
         return ret
     else:
-        return result['stdout']    return {parts[0]: parts[1] for parts in [line.split(': ') for line in result['stdout'].splitlines()]}
+        return result['stdout']
 
 
 def delete(datasource, path, key=None, value=None):

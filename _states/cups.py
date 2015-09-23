@@ -103,16 +103,20 @@ def present(name, description, uri, **kwargs):
 
     printers = __salt__['cups.printers']()
 
-    if name not in printers:
+    if printers is None or name not in printers:
         '''Just add'''
         changes['new'][name] = printerkwargs
         create = True
     else:
         '''Modify only changed attributes'''
         current_printer = printers[name]
+        current_ppd_options = __salt__['cups.options'](name)
+
         changes['new'][name] = {}
 
         for k, v in printerkwargs.iteritems():
+            if k == 'options':
+                continue  # Options will be processed separately
             if k in ignored_updates:
                 continue
             if k not in current_printer:
@@ -120,22 +124,34 @@ def present(name, description, uri, **kwargs):
             elif current_printer[k] != v:
                 changes['new'][name][k] = v
 
+        # TODO: Clean this up so you dont need n^2 iterations
+        if 'options' in printerkwargs:
+            for kopt, vopt in printerkwargs['options'].iteritems():
+                for currentopt in current_ppd_options:
+                    if currentopt['name'] == kopt and currentopt['selected'] != vopt:
+                        log.debug('PPD Option {0} changed, OLD:{1}, NEW:{2}'.format(kopt, currentopt['selected'], vopt))
+                        if 'options' not in changes['new']:
+                            changes['new'][name]['options'] = dict()
+                        changes['new'][name]['options'][kopt] = vopt
+
+
+
     if __opts__['test']:
         if len(changes['new'][name].keys()) == 0:
-            ret['result'] = None
-            ret['comment'] = 'No changes required'
+            ret['result'] = True
+            ret['comment'] = 'Queue is in the correct state'
         else:
             ret['changes'] = changes
             ret['result'] = None
 
             if create:
-                ret['comment'] = 'Printer would have been created.'
+                ret['comment'] = 'Queue would have been created.'
             else:
-                ret['comment'] = 'Printer would have been modified.'
+                ret['comment'] = 'Queue would have been modified.'
     else:
         if len(changes['new'][name].keys()) == 0:
-            ret['result'] = None
-            ret['comment'] = 'No changes required'
+            ret['result'] = True
+            ret['comment'] = 'Queue is in the correct state'
         else:
             # Remove these after comparison has been made with cups.printers, there should be a cleaner way to do this.
             changes['new'][name].pop('uri', None)
@@ -144,11 +160,11 @@ def present(name, description, uri, **kwargs):
             success = __salt__['cups.add'](name, description, uri, **changes['new'][name])
             if success:
                 ret['result'] = True
-                ret['comment'] = 'Printer successfully {}.'.format('created' if create else 'modified')
+                ret['comment'] = 'Queue successfully {}.'.format('created' if create else 'modified')
                 ret['changes'] = changes
             else:
                 ret['result'] = False
-                ret['comment'] = 'Failed to {} printer.'.format('create' if create else 'modify')
+                ret['comment'] = 'Failed to {} Queue.'.format('create' if create else 'modify')
 
     return ret
 
@@ -165,22 +181,22 @@ def absent(name):
 
     printers = __salt__['cups.printers']()
 
-    if name not in printers:
-        ret['result'] = None
-        ret['comment'] = 'No changes required'
+    if printers is None or name not in printers:
+        ret['result'] = True
+        ret['comment'] = 'Queue is in the correct state'
         return ret
 
     changes['old'] = printers[name]
 
     if __opts__['test']:
         ret['result'] = None
-        ret['comment'] = 'Printer {} would have been removed.'.format(name)
+        ret['comment'] = 'Queue {} would have been removed.'.format(name)
     else:
         success = __salt__['cups.remove'](name)
         if success:
             ret['result'] = True
-            ret['comment'] = 'Printer successfully removed.'
+            ret['comment'] = 'Queue successfully removed.'
         else:
-            ret['comment'] = 'Failed to remove printer.'
+            ret['comment'] = 'Failed to remove queue.'
 
     return ret

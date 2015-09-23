@@ -5,17 +5,27 @@ Add, modify, remove queues from the Common Unix Printing System
 
 import re
 import logging
+from salt.utils import which
 
 log = logging.getLogger(__name__)
 
-from salt import utils
+lpadmin_path = which('lpadmin')
+lpstat_path = which('lpstat')
+lpinfo_path = which('lpinfo')
+lpoptions_path = which('lpoptions')
 
+__virtualname__ = 'cups'
 
 def __virtual__():
     '''
     Only load if lpadmin exists on the system
     '''
-    return True if utils.which('lpadmin') else False
+    if not lpadmin_path:
+        log.warning("cups module not loading because lpadmin not found in path")
+        return False
+    else:
+        log.info("cups module is available at path: {}".format(lpadmin_path))
+        return __virtualname__
 
 
 def printers():
@@ -33,7 +43,7 @@ def printers():
 
         salt '*' cups.printers
     '''
-    printers_long = __salt__['cmd.run']('lpstat -l -p').splitlines()
+    printers_long = __salt__['cmd.run']('{0} -l -p'.format(lpstat_path)).splitlines()
     printers = dict()
     current = None
     name = None
@@ -59,10 +69,15 @@ def printers():
         if re.search(r"\tLocation:", line):
             current['location'] = re.match(r"\tLocation:\s(.*)", line).group(1)
 
-    printers[name] = current
+    if current is not None:
+        printers[name] = current
+
+    # No printers available
+    if len(printers.keys()) == 0:
+        return None
 
     # Now fetch device uri
-    printer_uris = __salt__['cmd.run']('lpstat -v').splitlines()
+    printer_uris = __salt__['cmd.run']('{0} -v'.format(lpstat_path)).splitlines()
 
     for line in printer_uris:
         matches = re.match(r"device for ([^:]*):\s(.*)", line)
@@ -113,7 +128,7 @@ def add(name, description, uri, **kwargs):
         salt '*' cups.add example_printer 'Example Printer Description' 'lpd://10.0.0.1' model='drv:///sample.drv/generic.ppd' location='Office Corner'
     '''
     result = {}
-    cmd = 'lpadmin -p {0} -E -D "{1}" -v "{2}"'.format(name, description, uri)
+    cmd = '{0} -p {1} -E -D "{2}" -v "{3}"'.format(lpadmin_path, name, description, uri)
 
     # Can't combine model and interface/ppd
     if 'model' in kwargs:
@@ -157,7 +172,7 @@ def remove(name):
 
         salt '*' cups.remove example_printer
     '''
-    removed = __salt__['cmd.retcode']('lpadmin -x {}'.format(name))
+    removed = __salt__['cmd.retcode']('{0} -x {1}'.format(lpadmin_path, name))
     return removed == 0
 
 
@@ -171,7 +186,7 @@ def models():
 
         salt '*' cups.models
     '''
-    return __salt__['cmd.run_stdout']('lpinfo -m')
+    return __salt__['cmd.run_stdout']('{0} -m'.format(lpinfo_path))
 
 
 def uris():
@@ -184,12 +199,15 @@ def uris():
 
         salt '*' cups.uris
     '''
-    return __salt__['cmd.run_stdout']('lpinfo -v')
+    return __salt__['cmd.run_stdout']('{0} -v'.format(lpinfo_path))
 
 
 def options(name):
     '''
     Parse model specific options for the given printer.
+    NOTE:
+        lpoptions -p <printer> -l returns PPD options set on the queue
+        lpoptions -l -p <printer> returns all possible PPD options with defaults shown as selected.
 
     CLI Example:
 
@@ -197,7 +215,7 @@ def options(name):
 
         salt '*' cups.options Printer_Name
     '''
-    options_long = __salt__['cmd.run']('lpoptions -p {} -l'.format(name)).splitlines()
+    options_long = __salt__['cmd.run']('{0} -l -p {1}'.format(lpoptions_path, name)).splitlines()
 
     options = list()
 

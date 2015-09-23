@@ -196,4 +196,39 @@ def read(datasource, path, key=None, **kwargs):
 
         return ret
     else:
-        return result['stdout']
+        return result['stdout']    return {parts[0]: parts[1] for parts in [line.split(': ') for line in result['stdout'].splitlines()]}
+
+
+def delete(datasource, path, key=None, value=None):
+    '''
+    Delete a record, record attribute, or a single value from a record attribute.
+
+    datasource
+        The datasource to search. Usually either '.' (for the local directory) or '/Search'
+        for all directory services in the search path.
+
+    path
+        The path of the resource
+
+    key : None
+        The attribute of the resource (specified by path) to delete. Leave this empty to delete the entire resource
+
+    value : None
+        The value to delete from the specified attribute, if removing items from a list type attribute.
+    '''
+    if key is not None and len(key) == 0:
+        log.warning('Attempted to delete a key with zero length string, this could remove the entire record. Aborting')
+        return False
+
+    if value is not None and len(value) == 0:
+        log.warning('Attempted to delete a value with zero length string, this could remove the entire key. Aborting')
+        return False
+
+    result = __salt__['cmd.run_all'](
+        '/usr/bin/dscl {0} delete {1} {2} {3}'.format(datasource, path, key, value)
+    )
+
+    if result['retcode'] != 0:
+        log.warning('Attempted to delete a record, key, or attribute that doesnt exist: {0}:{1}:{2}'.format(path, key, value))
+
+    return True

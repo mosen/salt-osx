@@ -6,7 +6,11 @@ Example_Printer:
     - description: 'SaltStack Example Printer'
     - uri: 'lpd://127.0.0.1/example'
     - location: 'Doesnt Exist'
-    - model: 'drv:///sample.drv/generic.ppd'
+    - model: 'drv:///sample.drv/laserjet.ppd'
+    - options:
+        PageSize: A4
+        InputSlot: Tray2
+
 
 #Example_Printer:
 #  printer:

@@ -141,7 +141,7 @@ def managed(name, enabled=True, **kwargs):
         ret['result'] = True
 
         if len(changes['new'].keys()) == 0:
-            ret['result'] = None
+            ret['result'] = True
             ret['comment'] = 'No changes required'
         else:
             if changes['new'].get('vnc_password', False):
@@ -190,7 +190,7 @@ def privileges(name, **privs):
     old_privs = current_privileges[name] if current_privileges is not None else list()
 
     if set(old_privs) == set(privs['list']):
-        ret['comment'] = 'No changes to remote management privileges required.'
+        ret['comment'] = 'Remote management privileges for {0} are in the correct state'.format(name)
     else:
         changes['old'] = old_privs
         changes['new'] = privs['list']
@@ -200,16 +200,16 @@ def privileges(name, **privs):
 
         if changes:
             ret['comment'] = 'Remote management privileges for {0} would have been changed.'.format(name)
+            ret['result'] = None
         else:
-            ret['comment'] = 'No changes will be made to remote management privileges for {0}'.format(name)
-
-        ret['result'] = None
+            ret['comment'] = 'Remote management privileges for {0} are in the correct state'.format(name)
+            ret['result'] = True
     else:
         if changes['new']:
             success = __salt__['ard.set_user_privs'](name, ','.join(privs['list']))
             ret['changes'] = changes
             ret['result'] = success
         else:
-            ret['result'] = None
+            ret['result'] = True
 
     return ret

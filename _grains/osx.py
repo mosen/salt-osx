@@ -99,7 +99,7 @@ def java_version():
 def flash_version():
     """Get the current version of the Flash internet plug-in"""
     output = cmdmod['cmd.run'](
-        "/usr/bin/defaults read '/Library/Internet\ Plug-Ins/Flash Player.plugin/Contents/Info' CFBundleVersion 2>/dev/null")
+        "/usr/bin/defaults read '/Library/Internet Plug-Ins/Flash Player.plugin/Contents/Info' CFBundleVersion 2>/dev/null")
     return {'mac_flash_version': output} if output else None
 
 

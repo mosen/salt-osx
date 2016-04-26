@@ -55,6 +55,18 @@ def filevault_enabled():
     return grains
 
 
+def sip_enabled():
+    '''
+    Determine the status of System Integrity Protection.
+    '''
+    sip_status = cmdmod['cmd.run']('csrutil status')
+
+    if re.match(r'disabled', sip_status) is None:
+        return {'sip_enabled': True}
+    else:
+        return {'sip_enabled': False}
+
+
 def java_vendor():
     """Get the current Java vendor for the JRE.
 

@@ -41,8 +41,9 @@ def quit(appname, blocking=False):
     Does not guarantee that the application will quit without user interaction.
     Does not block until the application quits.
 
-    :param application:
-    :return:
+    CLI Example::
+
+        salt '*' app.quit 'Safari'
     '''
     workSpace = NSWorkspace.sharedWorkspace()
     applications = workSpace.runningApplications()
@@ -60,8 +61,9 @@ def force_quit(appname, blocking=False):
     Force an application to quit aka `Force Quit`.
     Does not block until the application quits.
 
-    :param application:
-    :return:
+    CLI Example::
+
+        salt '*' app.force_quit 'Safari'
     '''
     workSpace = NSWorkspace.sharedWorkspace()
     applications = workSpace.runningApplications()
@@ -81,7 +83,7 @@ def launch(application):
 
     CLI Example::
 
-        salt '*' desktop.launch 'TextEdit'
+        salt '*' app.launch 'TextEdit'
     '''
     workSpace = NSWorkspace.sharedWorkspace()
     status = workSpace.launchApplication_(application)

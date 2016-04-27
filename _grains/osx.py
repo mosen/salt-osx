@@ -55,6 +55,18 @@ def filevault_enabled():
     return grains
 
 
+def sip_enabled():
+    '''
+    Determine the status of System Integrity Protection.
+    '''
+    sip_status = cmdmod['cmd.run']('csrutil status')
+
+    if re.match(r'disabled', sip_status) is None:
+        return {'sip_enabled': True}
+    else:
+        return {'sip_enabled': False}
+
+
 def java_vendor():
     """Get the current Java vendor for the JRE.
 
@@ -87,7 +99,7 @@ def java_version():
 def flash_version():
     """Get the current version of the Flash internet plug-in"""
     output = cmdmod['cmd.run'](
-        "/usr/bin/defaults read '/Library/Internet\ Plug-Ins/Flash Player.plugin/Contents/Info' CFBundleVersion 2>/dev/null")
+        "/usr/bin/defaults read '/Library/Internet Plug-Ins/Flash Player.plugin/Contents/Info' CFBundleVersion 2>/dev/null")
     return {'mac_flash_version': output} if output else None
 
 

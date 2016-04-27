@@ -23,6 +23,7 @@ def __virtual__():
     '''
     return __virtualname__ if salt.utils.is_darwin() else False
 
+
 def _parse_packages(output):
     '''
     Parse package listing from `softwareupdate` tool.

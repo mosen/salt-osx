@@ -15,15 +15,19 @@ authorization right.
 '''
 
 import logging
+import salt.utils
 
 HAS_LIBS = False
 try:
-    from LaunchServices import LSSharedFileListCreate, \
-        kLSSharedFileListSessionLoginItems, \
-        kLSSharedFileListGlobalLoginItems, \
-        LSSharedFileListRef, \
-        LSSharedFileListCopySnapshot, \
-        LSSharedFileListItemCopyDisplayName
+    import objc
+    # from LaunchServices import LSSharedFileListCreate, \
+    #     kLSSharedFileListSessionLoginItems, \
+    #     kLSSharedFileListGlobalLoginItems, \
+    #     LSSharedFileListRef, \
+    #     LSSharedFileListCopySnapshot, \
+    #     LSSharedFileListItemCopyDisplayName
+
+    from Foundation import NSBundle
 
     HAS_LIBS = True
 except ImportError:
@@ -36,10 +40,12 @@ def __virtual__():
     '''
     Only load if the platform is correct and we can use PyObjC libs
     '''
-    if __grains__.get('kernel') != 'Darwin':
+    if not salt.utils.is_darwin():
+        log.warning('Cant load OS X login module because platform is not Darwin')
         return False
 
     if not HAS_LIBS:
+        log.warning('Cant load OS X login module because could not import functions')
         return False
 
     return __virtualname__
@@ -48,35 +54,36 @@ def __virtual__():
 log = logging.getLogger(__name__)  # Start logging
 
 
+# Deprecated in 10.11
 # In the user context, LSSharedFileListCreate() gets the root list because salt runs under sudo
-def items(context):
-    '''
-    Get a list of 'Login Items'
-
-    context
-        The shared file list context: 'user' (meaning the current session) or 'system'.
-        The default login item list will be the 'system' list.
-
-    CLI Example:
-
-    .. code-block:: bash
-
-        salt '*' login.items [context]
-    '''
-    if context == 'user':
-        defined_context = kLSSharedFileListSessionLoginItems
-    else:
-        defined_context = kLSSharedFileListGlobalLoginItems
-
-    log.info('Getting login items for the %s context', 'user' if context == 'user' else 'system')
-    lst = LSSharedFileListCreate(None, defined_context, None)
-    snapshot, seed = LSSharedFileListCopySnapshot(lst, None)  # snapshot is CFArray
-
-    log.info('Login item display names:')
-    login_items = [LSSharedFileListItemCopyDisplayName(item) for item in snapshot]
-    log.info(login_items)
-
-    return login_items
+# def items(context):
+#     '''
+#     Get a list of 'Login Items'
+#
+#     context
+#         The shared file list context: 'user' (meaning the current session) or 'system'.
+#         The default login item list will be the 'system' list.
+#
+#     CLI Example:
+#
+#     .. code-block:: bash
+#
+#         salt '*' login.items [context]
+#     '''
+#     if context == 'user':
+#         defined_context = kLSSharedFileListSessionLoginItems
+#     else:
+#         defined_context = kLSSharedFileListGlobalLoginItems
+#
+#     log.info('Getting login items for the %s context', 'user' if context == 'user' else 'system')
+#     lst = LSSharedFileListCreate(None, defined_context, None)
+#     snapshot, seed = LSSharedFileListCopySnapshot(lst, None)  # snapshot is CFArray
+#
+#     log.info('Login item display names:')
+#     login_items = [LSSharedFileListItemCopyDisplayName(item) for item in snapshot]
+#     log.info(login_items)
+#
+#     return login_items
 
 
 def hidden_users():
@@ -259,3 +266,25 @@ def display_input_menu():
 def display_password_hints():
     pass # RetriesUntilHint (INT) default 3, off = 0
 
+
+def users():
+    '''
+    Get a list of users logged in. This includes both the active console user and all other users logged in via fast
+    switching.
+    '''
+    CG_bundle = NSBundle.bundleWithIdentifier_('com.apple.CoreGraphics')
+    functions = [("CGSSessionCopyAllSessionProperties", b"@"),]
+    objc.loadBundleFunctions(CG_bundle, globals(), functions)
+
+    userlist = CGSSessionCopyAllSessionProperties()
+    result = list()
+
+    for user in userlist:
+        result.append({
+            'username': user['kCGSSessionUserNameKey'],
+            'longname': user['kCGSessionLongUserNameKey'],
+            'console': user['kCGSSessionOnConsoleKey'],
+            'logged_in': user['kCGSessionLoginDoneKey']
+        })
+
+    return result

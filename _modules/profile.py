@@ -30,6 +30,7 @@ __virtualname__ = 'profile'
 def __virtual__():
     return __virtualname__ if salt.utils.is_darwin() else False
 
+
 def _content_to_uuid(payload):
     '''
     Generate a UUID based upon the payload content
@@ -300,7 +301,7 @@ def remove(identifier):
 
     if not status == 0:
         raise salt.exceptions.CommandExecutionError(
-            'Failed to remove profile with identifier: {}'.format(path)
+            'Failed to remove profile with identifier: {}'.format(identifier)
         )
 
     return True

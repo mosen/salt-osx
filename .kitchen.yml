@@ -1,0 +1,22 @@
+---
+driver:
+  name: vagrant
+  provider: vmware_fusion
+
+provisioner:
+  name: salt_solo
+  formula: osx
+  state_top:
+    base:
+      '*':
+        - salt
+
+platforms:
+  - name: osx-10.9
+  - name: osx-10.10
+  - name: osx-10.11
+
+suites:
+  - name: default
+    run_list:
+    attributes:

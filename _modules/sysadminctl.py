@@ -10,9 +10,15 @@ SYSADMINCTL = '/usr/sbin/sysadminctl'
 
 log = logging.getLogger(__name__)
 
+__virtualname__ = 'sysadminctl'
+
 
 def __virtual__():
-    return True if salt.utils.which(SYSADMINCTL) else False
+    if (__grains__.get('kernel') != 'Darwin' or
+                __grains__['osrelease_info'] < (10, 11)):
+        return False
+    else:
+        return __virtualname__
 
 
 def user_delete(username, keep_home=False, secure=False):

@@ -71,6 +71,8 @@ def nodes():
 def search(path, searchValue):
     '''
     List records that match the given query.
+
+
     '''
     node = _get_node(path)
 

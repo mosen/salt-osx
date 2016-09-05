@@ -102,20 +102,6 @@ def flash_version():
         "/usr/bin/defaults read '/Library/Internet Plug-Ins/Flash Player.plugin/Contents/Info' CFBundleVersion 2>/dev/null")
     return {'mac_flash_version': output} if output else None
 
-
-def admin_users():
-    """Local admin group membership.
-
-    :return: List of admin group members
-    :rtype: list
-    """
-    output = cmdmod['cmd.run']('dscl . -read /Groups/admin GroupMembership')
-    log.debug("dscl output for admin users follows: {0}".format(output))
-    parts = output.split(':', 1)
-    members = [member for member in parts[1].split()]
-    return {'mac_admin_users': members}
-
-
 def mac_laptop():
     """Determine whether this machine is a laptop or desktop.
 
@@ -127,14 +113,14 @@ def mac_laptop():
     return {'mac_laptop': hardware_type}
 
 
-def mac_current_user():
-    """Determine currently logged in user.
-
-    :return: short loginname of current user.
-    :rype: string
-    """
-    output = cmdmod['cmd.run']("/bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }'")
-    return {'mac_current_user': output}
+# def mac_current_user():
+#     """Determine currently logged in user.
+#
+#     :return: short loginname of current user.
+#     :rype: string
+#     """
+#     output = cmdmod['cmd.run']("/bin/ls -l /dev/console | /usr/bin/awk '{ print $3 }'")
+#     return {'mac_current_user': output}
 
 
 def mac_timezone():

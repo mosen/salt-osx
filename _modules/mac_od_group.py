@@ -23,7 +23,8 @@ try:
     import objc
     from OpenDirectory import ODSession, ODQuery, ODNode, \
         kODRecordTypeUsers, kODRecordTypeGroups, kODAttributeTypeRecordName, kODMatchContains, \
-        kODAttributeTypeStandardOnly, kODMatchEqualTo, kODAttributeTypeUniqueID
+        kODAttributeTypeStandardOnly, kODMatchEqualTo, kODAttributeTypeUniqueID, kODMatchAny, \
+        kODAttributeTypeAllTypes
     from Foundation import NSRunLoop, NSDefaultRunLoopMode, NSObject, NSDate
     has_imports = True
 except ImportError:
@@ -68,7 +69,9 @@ def add(name, gid=None, **kwargs):
 
     attributes = {}
     if gid is not None:
-        attributes['PrimaryGroupID'] = [gid]
+        attributes['dsAttrTypeNative:PrimaryGroupID'] = int(gid),
+
+    attributes['dsAttrTypeNative:RealName'] = [name]
 
     record, err = node.createRecordWithRecordType_name_attributes_error_(
         kODRecordTypeGroups,
@@ -143,7 +146,7 @@ def adduser(group, name):
 
     groupObject = groupObject[0]
 
-    user = _find_user('/Local/Default', name)
+    user = _find_user('/Search', name)
     if user is None or len(user) == 0:
         raise CommandExecutionError(
             'user {} does not exist'.format(name)
@@ -261,6 +264,56 @@ def _format_info(data):
         attrs[k] = list(v)
 
     return attrs
+
+
+def getent(refresh=False):
+    '''
+    Return info on all groups
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' group.getent
+    '''
+    if 'group.getent' in __context__ and not refresh:
+        return __context__['group.getent']
+
+    node = _get_node('/Local/Default')
+    if not node:
+        raise SaltInvocationError(
+            'directory services query not possible, cannot get reference to node at path: /Local/Default'
+        )
+
+    query, err = ODQuery.alloc().initWithNode_forRecordTypes_attribute_matchType_queryValues_returnAttributes_maximumResults_error_(
+        node,
+        kODRecordTypeGroups,
+        kODAttributeTypeAllTypes,
+        kODMatchAny,
+        None,
+        kODAttributeTypeStandardOnly,
+        200,
+        None
+    )
+
+    if err:
+        raise SaltInvocationError(
+            'Failed to construct query: {}'.format(err)
+        )
+
+    results, err = query.resultsAllowingPartial_error_(False, None)
+
+    if err:
+        raise SaltInvocationError(
+            'Failed to query opendirectory: {}'.format(err)
+        )
+
+    groupAttrs = []
+    for result in results:
+        attrs, err = result.recordDetailsForAttributes_error_(None, None)
+        groupAttrs.append(attrs)
+
+    return [_format_info(attrs) for attrs in groupAttrs]
 
 
 def nodes():

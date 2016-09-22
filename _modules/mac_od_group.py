@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 '''
-Support for Directory Object query and manipulation via the DirectoryServices framework
+Support for local group manipulation via the DirectoryServices framework
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new
@@ -11,7 +11,6 @@ Support for Directory Object query and manipulation via the DirectoryServices fr
 
 from __future__ import absolute_import
 import logging
-from pprint import pprint
 from salt.exceptions import CommandExecutionError, SaltInvocationError
 
 log = logging.getLogger(__name__)
@@ -38,7 +37,7 @@ def __virtual__():
     if not has_imports:
         return False, 'Open Directory only available on Darwin'
     else:
-        return True
+        return __virtualname__
 
 def _get_node(path):
     '''
@@ -292,7 +291,7 @@ def getent(refresh=False):
         kODMatchAny,
         None,
         kODAttributeTypeStandardOnly,
-        200,
+        200,  # TODO: hard coded limit bad
         None
     )
 

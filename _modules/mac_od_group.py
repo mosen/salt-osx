@@ -23,7 +23,7 @@ try:
     from OpenDirectory import ODSession, ODQuery, ODNode, \
         kODRecordTypeUsers, kODRecordTypeGroups, kODAttributeTypeRecordName, kODMatchContains, \
         kODAttributeTypeStandardOnly, kODMatchEqualTo, kODAttributeTypeUniqueID, kODMatchAny, \
-        kODAttributeTypeAllTypes
+        kODAttributeTypeAllTypes, kODAttributeTypePrimaryGroupID, kODAttributeTypeFullName
     from Foundation import NSRunLoop, NSDefaultRunLoopMode, NSObject, NSDate
     has_imports = True
 except ImportError:
@@ -67,10 +67,12 @@ def add(name, gid=None, **kwargs):
     node = _get_node('/Local/Default')  # For now we will assume you want to alter the local directory.
 
     attributes = {}
-    if gid is not None:
-        attributes['dsAttrTypeNative:PrimaryGroupID'] = int(gid),
+    setattrs = {}
 
-    attributes['dsAttrTypeNative:RealName'] = [name]
+    if gid is not None:
+        setattrs[kODAttributeTypePrimaryGroupID] = [int(gid)]
+
+    attributes[kODAttributeTypeFullName] = [name]
 
     record, err = node.createRecordWithRecordType_name_attributes_error_(
         kODRecordTypeGroups,
@@ -82,6 +84,21 @@ def add(name, gid=None, **kwargs):
     if err is not None:
         raise CommandExecutionError(
             'unable to create local directory group, reason: {}'.format(err.localizedDescription())
+        )
+
+    for k, v in setattrs.items():
+        setted, err = record.setValue_forAttribute_error_(
+            v,
+            k,
+            None
+        )
+        if err is not None:
+            log.error('failed to set attribute {} on group {}'.format(k, name))
+
+    synced, err = record.synchronizeAndReturnError_(None)
+    if err is not None:
+        raise CommandExecutionError(
+            'unable to set attributes on local directory group, reason: {}'.format(err.localizedDescription())
         )
 
     return True

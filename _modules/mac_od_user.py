@@ -60,13 +60,13 @@ def add(name,
     '''
     node = _get_node('/Local/Default')  # For now we will assume you want to alter the local directory.
     attributes = {}
+    setattrs = {}
 
     if uid is not None:
-        attributes[kODAttributeTypeUniqueID] = [uid]
+        setattrs[kODAttributeTypeUniqueID] = uid
     #
-    # if gid is not None:
-    #
-    #     attributes[kODAttributeTypePrimaryGroupID] = [20]  # gid 20 == 'staff', the default group
+    if gid is None:
+        setattrs[kODAttributeTypePrimaryGroupID] = 20  # gid 20 == 'staff', the default group
     # else:
     #     attributes[kODAttributeTypePrimaryGroupID] = [gid]
 
@@ -94,6 +94,11 @@ def add(name,
         raise CommandExecutionError(
             'unable to create local directory user, reason: {}'.format(err.localizedDescription())
         )
+
+    for k, v in setattrs.items():
+        setted, err = record.setValue_forAttribute_error_(v, k, None)
+        if err is not None:
+            log.error('failed to set attribute {} on user {}, reason: {}'.format(k, name, err.localizedDescription()))
 
     synced, err = record.synchronizeAndReturnError_(None)
     if err is not None:

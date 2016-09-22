@@ -48,6 +48,9 @@ master or masterless setup.
 - [login](docs/markdown/login.md) **beta** Manage loginwindow preferences, Manage login items for current user.
 - [plist](docs/markdown/plist.md) **beta** Manage PropertyList files/key values.
 - [power](docs/markdown/power.md) **mature** Interact with system power (i.e sleep/shutdown/reboot).
+- [mac_od_user](docs/markdown/mac_od_user.md) mac_user module replacement using native DirectoryServices framework.
+- [mac_od_group](docs/markdown/mac_od_group.md) mac_group module replacement using native DirectoryServices framework.
+
  
 ## TODO ##
 
@@ -56,7 +59,6 @@ General Roadmap Notes:
 - SaltStack Shortcomings:
     + **services**: launchctl.py enumeration of standard directories could potentially be faster through other API
     methods. If i want to be really pedantic then `restart()` doesnt need the `-w` flag for overrides.
-    + **user**: mac_user.py Badly needs ShadowHash implementation similar to macadmin in ruby.
     + **pkg**: brew.py/macports.py No implementation for `installer` tool? Steal another implementation just so that
     Salt could be used to bootstrap other package management solutions.
     + **netstat**: No netstat implementation for osx

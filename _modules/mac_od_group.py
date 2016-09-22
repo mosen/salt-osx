@@ -53,7 +53,6 @@ def _get_node(path):
 
     return node
 
-### group state compatibility
 
 def add(name, gid=None, **kwargs):
     '''
@@ -67,10 +66,14 @@ def add(name, gid=None, **kwargs):
     '''
     node = _get_node('/Local/Default')  # For now we will assume you want to alter the local directory.
 
+    attributes = {}
+    if gid is not None:
+        attributes['PrimaryGroupID'] = [gid]
+
     record, err = node.createRecordWithRecordType_name_attributes_error_(
         kODRecordTypeGroups,
         name,
-        {},
+        attributes,
         None
     )
 
@@ -80,6 +83,7 @@ def add(name, gid=None, **kwargs):
         )
 
     return True
+
 
 def delete(name):
     '''
@@ -113,6 +117,152 @@ def delete(name):
     return deleted
 
 
+def adduser(group, name):
+    '''
+    Add a user in the group.
+
+    CLI Example:
+
+    .. code-block:: bash
+
+         salt '*' group.adduser foo bar
+
+    Verifies if a valid username 'bar' as a member of an existing group 'foo',
+    if not then adds it.
+    '''
+    groupObject = _find_group('/Local/Default', name)
+    if groupObject is None or len(groupObject) == 0:
+        raise CommandExecutionError(
+            'group {} does not exist'.format(name)
+        )
+
+    if len(groupObject) > 1:
+        raise CommandExecutionError(
+            'Expected group name {} to match only a single group, matched: {}'.format(group, len(groupObject))
+        )
+
+    groupObject = groupObject[0]
+
+    user = _find_user('/Local/Default', name)
+    if user is None or len(user) == 0:
+        raise CommandExecutionError(
+            'user {} does not exist'.format(name)
+        )
+
+    if len(user) > 1:
+        raise CommandExecutionError(
+            'Expected group name {} to match only a single group, matched: {}'.format(name, len(user))
+        )
+
+    user = user[0]
+
+    added, err = groupObject.addMemberRecord_error_(
+        user, None
+    )
+    if err:
+        raise CommandExecutionError(
+            'Unable to add member {} to group {}, reason: {}'.format(name, group, err.localizedDescription())
+        )
+
+    return added
+
+
+def deluser(group, name):
+    '''
+    Remove a user from the group
+
+    .. versionadded:: 2016.3.0
+
+    CLI Example:
+
+    .. code-block:: bash
+
+         salt '*' group.deluser foo bar
+
+    Removes a member user 'bar' from a group 'foo'. If group is not present
+    then returns True.
+    '''
+    groupObject = _find_group('/Search', name)
+    if groupObject is None or len(groupObject) == 0:
+        raise CommandExecutionError(
+            'group {} does not exist'.format(name)
+        )
+
+    if len(groupObject) > 1:
+        raise CommandExecutionError(
+            'Expected group name {} to match only a single group, matched: {}'.format(group, len(groupObject))
+        )
+
+    groupObject = groupObject[0]
+
+    user = _find_user('/Local/Default', name)
+    if user is None or len(user) == 0:
+        raise CommandExecutionError(
+            'user {} does not exist'.format(name)
+        )
+
+    if len(user) > 1:
+        raise CommandExecutionError(
+            'Expected group name {} to match only a single group, matched: {}'.format(name, len(user))
+        )
+
+    user = user[0]
+
+    removed, err = groupObject.removeMemberRecord_error_(
+        user, None
+    )
+    if err:
+        raise CommandExecutionError(
+            'Unable to remove member {} from group {}, reason: {}'.format(name, group, err.localizedDescription())
+        )
+
+    return removed
+
+
+def info(name):
+    '''
+    Return information about a group
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' group.info foo
+    '''
+    group = _find_group('/Local/Default', name)
+    if group is None or len(group) == 0:
+        raise CommandExecutionError(
+            'group {} does not exist'.format(name)
+        )
+
+    if len(group) > 1:
+        raise CommandExecutionError(
+            'Expected group name {} to match only a single group, matched: {}'.format(name, len(group))
+        )
+
+    group = group[0]
+    attrs, err = group.recordDetailsForAttributes_error_(None, None)
+
+    if err is not None:
+        raise CommandExecutionError(
+            'Could not get attributes for group {}, reason: {}'.format(name, err.localizedDescription())
+        )
+
+    return _format_info(attrs)
+
+
+def _format_info(data):
+    '''
+    Return formatted information in a pretty way.
+    '''
+    attrs = {}
+
+    for k, v in data.iteritems():
+        attrs[k] = list(v)
+
+    return attrs
+
+
 def nodes():
     '''
     Get a list of registered nodes eg. /Local/Default
@@ -131,51 +281,6 @@ def nodes():
     # The method returns with a tuple so it is converted to a list here.
     return list(names)
 
-
-def search(path, searchValue):
-    '''
-    List records that match the given query.
-    '''
-    node = _get_node(path)
-
-    if not node:
-        log.error('Query not possible, cannot get reference to node at path: {}'.format(path))
-        return None
-
-    query, err = ODQuery.alloc().initWithNode_forRecordTypes_attribute_matchType_queryValues_returnAttributes_maximumResults_error_(
-        node,
-        kODRecordTypeGroups,
-        kODAttributeTypeRecordName,
-        kODMatchContains,
-        searchValue,
-        kODAttributeTypeStandardOnly,
-        0,
-        None
-    )
-
-    if err:
-        log.error('Failed to construct query: {}'.format(err))
-        return None
-
-    ODQueryDelegate = objc.protocolNamed('ODQueryDelegate')
-
-    class QueryDelegate(NSObject, ODQueryDelegate):
-        def query_foundResults_error_(self, inQuery, inResults, inError):
-            log.error('FOUND RESULTS')
-
-    qd = QueryDelegate()
-    query.setDelegate_(qd)
-    query.scheduleInRunLoop_forMode_(NSRunLoop.currentRunLoop(), NSDefaultRunLoopMode)
-
-
-def _format_odrecord_group(record):
-    '''
-    Format an ODRecord object representing a Group into a python dict.
-
-    :param record:
-    :return:
-    '''
-    pass
 
 def _find_group(path, groupName):
     '''
@@ -220,11 +325,7 @@ def _find_group(path, groupName):
 
 def _find_gid(path, gid):
     '''
-    Search for groups using the given criteria.
-
-    CLI Example::
-
-        salt '*' group._find_gid <path> <gid>
+    Find a group object in the local directory by its unique id (gid)
     '''
     node = _get_node(path)
 
@@ -239,6 +340,43 @@ def _find_gid(path, gid):
         kODAttributeTypeUniqueID,
         kODMatchEqualTo,
         gid,
+        kODAttributeTypeStandardOnly,
+        1,
+        None
+    )
+
+    if err:
+        raise SaltInvocationError(
+            'Failed to construct query: {}'.format(err)
+        )
+
+    results, err = query.resultsAllowingPartial_error_(False, None)
+
+    if err:
+        raise SaltInvocationError(
+            'Failed to query opendirectory: {}'.format(err)
+        )
+
+    return results
+
+
+def _find_user(path, userName):
+    '''
+    Find a user object in the local directory by their username
+    '''
+    node = _get_node(path)
+
+    if not node:
+        raise SaltInvocationError(
+            'directory services query not possible, cannot get reference to node at path: {}'.format(path)
+        )
+
+    query, err = ODQuery.alloc().initWithNode_forRecordTypes_attribute_matchType_queryValues_returnAttributes_maximumResults_error_(
+        node,
+        kODRecordTypeUsers,
+        kODAttributeTypeRecordName,
+        kODMatchEqualTo,
+        userName,
         kODAttributeTypeStandardOnly,
         1,
         None

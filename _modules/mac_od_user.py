@@ -11,7 +11,7 @@ Support for local user manipulation via the DirectoryServices framework
 from __future__ import absolute_import
 import logging
 from salt.exceptions import CommandExecutionError, SaltInvocationError
-import os
+import salt.utils
 
 log = logging.getLogger(__name__)
 has_imports = False
@@ -24,7 +24,7 @@ try:
         kODRecordTypeUsers, kODRecordTypeGroups, kODAttributeTypeRecordName, kODMatchContains, \
         kODAttributeTypeStandardOnly, kODMatchEqualTo, kODMatchAny, \
         kODAttributeTypeAllTypes, kODAttributeTypeUniqueID, kODAttributeTypePrimaryGroupID, kODAttributeTypeNFSHomeDirectory, \
-        kODAttributeTypeUserShell, kODAttributeTypeFullName, kODAttributeTypeGUID
+        kODAttributeTypeUserShell, kODAttributeTypeFullName, kODAttributeTypeGUID, kODAttributeTypeRecordName
     from Foundation import NSRunLoop, NSDefaultRunLoopMode, NSObject, NSDate
     has_imports = True
 except ImportError:
@@ -307,10 +307,10 @@ def chfullname(name, fullname):
 
         salt '*' user.chfullname foo 'Foo Bar'
     '''
-    if isinstance(fullname, string_types):
-        fullname = _sdecode(fullname)
+    # if isinstance(fullname, string_types):
+    #     fullname = _sdecode(fullname)
 
-    return _update_attribute(name, kODAttributeTypeFullName, home)
+    return _update_attribute(name, kODAttributeTypeFullName, fullname)
 
 
 # TODO: chgroups
@@ -337,6 +337,82 @@ def info(name):
     return _format_info(attrs)
 
 
+def primary_group(name):
+    '''
+    Return the primary group of the named user
+
+    .. versionadded:: 2016.3.0
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' user.primary_group saltadmin
+    '''
+    user = info(name)
+    if user is None:
+        return None
+
+    return user.get(kODAttributeTypePrimaryGroupID)
+
+# def list_groups(name):
+#     '''
+#     Return a list of groups the named user belongs to.
+#
+#     name
+#
+#         The name of the user for which to list groups. Starting in Salt Carbon,
+#         all groups for the user, including groups beginning with an underscore
+#         will be listed.
+#
+#         .. versionchanged:: Carbon
+#
+#     CLI Example:
+#
+#     .. code-block:: bash
+#
+#         salt '*' user.list_groups foo
+#     '''
+
+
+def list_users():
+    '''
+    Return a list of all users
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' user.list_users
+    '''
+    users = getent()
+    if users is None:
+        return None
+
+    # NOTE: did not use a list comprehension because each user record can actually have multiple usernames
+    # this means that the system can resolve two distinct usernames as one account.
+    usernames = []
+    for user in users:
+        names = user[kODAttributeTypeRecordName]
+        for name in names:
+            usernames.append(name)
+
+    return usernames
+
+
+def rename(name, new_name):
+    '''
+    Change the username for a named user
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' user.rename name new_name
+    '''
+    return _update_attribute(name, kODAttributeTypeRecordName, new_name)
+
+
 def _update_attribute(name, od_attribute, value, commit=True):
     '''
     Update an Open Directory attribute for the given user name.
@@ -351,11 +427,11 @@ def _update_attribute(name, od_attribute, value, commit=True):
             'user {} does not exist'.format(name)
         )
 
-    didSet, err = record.setValue_forAttribute_error_(value, od_attribute, None)
+    didSet, err = user.setValue_forAttribute_error_(value, od_attribute, None)
     if err is not None:
         log.error('failed to set attribute {} on user {}, reason: {}'.format(od_attribute, name, err.localizedDescription()))
 
-    synced, err = record.synchronizeAndReturnError_(None)
+    synced, err = user.synchronizeAndReturnError_(None)
     if err is not None:
         raise CommandExecutionError(
             'could not save updated user record, reason: {}'.format(err.localizedDescription())

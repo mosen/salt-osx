@@ -50,7 +50,7 @@ master or masterless setup.
 - [power](docs/markdown/power.md) **mature** Interact with system power (i.e sleep/shutdown/reboot).
 - [mac_od_user](docs/markdown/mac_od_user.md) mac_user module replacement using native DirectoryServices framework.
 - [mac_od_group](docs/markdown/mac_od_group.md) mac_group module replacement using native DirectoryServices framework.
-
+- [mac_od_shadow](docs/markdown/mac_od_shadow.md) mac_shadow module replacement using native DirectoryServices framework.
  
 ## TODO ##
 

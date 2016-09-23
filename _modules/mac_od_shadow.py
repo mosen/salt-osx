@@ -89,6 +89,74 @@ def info(name):
     return policies
 
 
+def del_password(name):
+    '''
+    Deletes the account password
+
+    :param str name: The user name of the account
+
+    :return: True if successful, otherwise False
+    :rtype: bool
+
+    :raises: CommandExecutionError on user not found or any other unknown error
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' shadow.del_password username
+    '''
+    user = _find_user('/Local/Default', name)
+    if user is None:
+        raise CommandExecutionError(
+            'could not find user to remove password: {}'.format(name)
+        )
+
+    didChange, err = user.changePassword_toPassword_error_(None, None, None)
+    if err is not None:
+        raise CommandExecutionError(
+            'could not remove password on user: {}, reason: {}'.format(name, err.localizedDescription())
+        )
+
+    return didChange
+
+
+def set_password(name, password):
+    '''
+    Set the password for a named user (insecure, the password will be in the
+    process list while the command is running)
+
+    :param str name: The name of the local user, which is assumed to be in the
+    local directory service
+
+    :param str password: The plaintext password to set
+
+    :return: True if successful, otherwise False
+    :rtype: bool
+
+    :raises: CommandExecutionError on user not found or any other unknown error
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' mac_shadow.set_password macuser macpassword
+    '''
+    user = _find_user('/Local/Default', name)
+    if user is None:
+        raise CommandExecutionError(
+            'could not find user to remove password: {}'.format(name)
+        )
+
+    didChange, err = user.changePassword_toPassword_error_(None, password, None)
+    if err is not None:
+        raise CommandExecutionError(
+            'could not remove password on user: {}, reason: {}'.format(name, err.localizedDescription())
+        )
+
+    return didChange
+
+
 def _get_node(path):
     '''
     Get a reference to an ODNode instance given a path string eg. /LDAPv3/127.0.0.1

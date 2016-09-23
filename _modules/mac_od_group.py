@@ -344,8 +344,9 @@ def nodes():
     names, err = session.nodeNamesAndReturnError_(None)
 
     if err is not None:
-        log.error(err)
-        return None
+        raise SaltInvocationError(
+            'cannot retrieve a list of directory services nodes, reason: {}'.format(err.localizedDescription())
+        )
 
     # The method returns with a tuple so it is converted to a list here.
     return list(names)
@@ -383,7 +384,6 @@ def _find_group(path, groupName):
         )
 
     results, err = query.resultsAllowingPartial_error_(False, None)
-
     if err:
         raise SaltInvocationError(
             'Failed to query opendirectory: {}'.format(err)
@@ -420,7 +420,6 @@ def _find_gid(path, gid):
         )
 
     results, err = query.resultsAllowingPartial_error_(False, None)
-
     if err:
         raise SaltInvocationError(
             'Failed to query opendirectory: {}'.format(err)

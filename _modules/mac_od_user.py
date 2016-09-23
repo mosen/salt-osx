@@ -11,6 +11,7 @@ Support for local user manipulation via the DirectoryServices framework
 from __future__ import absolute_import
 import logging
 from salt.exceptions import CommandExecutionError, SaltInvocationError
+import os
 
 log = logging.getLogger(__name__)
 has_imports = False
@@ -64,11 +65,11 @@ def add(name,
 
     if uid is not None:
         setattrs[kODAttributeTypeUniqueID] = uid
-    #
+
     if gid is None:
         setattrs[kODAttributeTypePrimaryGroupID] = 20  # gid 20 == 'staff', the default group
-    # else:
-    #     attributes[kODAttributeTypePrimaryGroupID] = [gid]
+    else:
+        setattrs[kODAttributeTypePrimaryGroupID] = gid
 
     if home is None:
         attributes[kODAttributeTypeNFSHomeDirectory] = ['/Users/{0}'.format(name)]
@@ -124,7 +125,8 @@ def add(name,
 
     guid = guids[0]
 
-    # TODO: createhome
+    if createhome:
+        __salt__['file.mkdir'](home, user=uid, group=gid)
     # TODO: group membership
 
     return True
@@ -144,26 +146,23 @@ def delete(name, remove=False, force=False):
     if force:
         log.warn('force option is unsupported on MacOS, ignoring')
 
-    # remove home directory from filesystem
-    # if remove:
-    #     __salt__['file.remove'](info(name)['home'])
+    user = _find_user('/Local/Default', name)
+    if user is None:
+        raise CommandExecutionError(
+            'user {} does not exist'.format(name)
+        )
 
     # Remove from any groups other than primary group. Needs to be done since
     # group membership is managed separately from users and an entry for the
     # user will persist even after the user is removed.
     # chgroups(name, ())
-    user = _find_user('/Local/Default', name)
-    if user is None or len(user) == 0:
-        raise CommandExecutionError(
-            'user {} does not exist'.format(name)
-        )
 
-    if len(user) > 1:
-        raise CommandExecutionError(
-            'Expected user name {} to match only a single user, matched: {}'.format(name, len(user))
-        )
 
-    user = user[0]
+
+    # remove home directory from filesystem
+    if remove:
+        # TODO: Ensure that the path described is local
+        __salt__['file.remove'](user[kODAttributeTypeNFSHomeDirectory])
 
     deleted, err = user.deleteRecordAndReturnError_(None)
     if err:
@@ -173,6 +172,199 @@ def delete(name, remove=False, force=False):
 
     return deleted
 
+
+def _format_info(data):
+    '''
+    Return formatted information in a pretty way.
+    '''
+    attrs = {}
+
+    for k, v in data.iteritems():
+        attrs[k] = list(v)
+
+    # TODO: Normalise OD attributes into unix compatible results
+
+    return attrs
+
+
+def getent(refresh=False):
+    '''
+    Return info on all users
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' group.getent
+    '''
+    if 'user.getent' in __context__ and not refresh:
+        return __context__['user.getent']
+
+    node = _get_node('/Local/Default')
+    query, err = ODQuery.alloc().initWithNode_forRecordTypes_attribute_matchType_queryValues_returnAttributes_maximumResults_error_(
+        node,
+        kODRecordTypeUsers,
+        kODAttributeTypeAllTypes,
+        kODMatchAny,
+        None,
+        kODAttributeTypeStandardOnly,
+        200,  # TODO: hard coded limit bad
+        None
+    )
+
+    if err:
+        raise SaltInvocationError(
+            'Failed to construct query: {}'.format(err)
+        )
+
+    results, err = query.resultsAllowingPartial_error_(False, None)
+
+    if err:
+        raise SaltInvocationError(
+            'Failed to query opendirectory: {}'.format(err)
+        )
+
+    userAttrs = []
+    for result in results:
+        attrs, err = result.recordDetailsForAttributes_error_(None, None)
+        userAttrs.append(attrs)
+
+    return [_format_info(attrs) for attrs in userAttrs]
+
+
+def chuid(name, uid):
+    '''
+    Change the uid for a named user
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' user.chuid foo 4376
+    '''
+    if not isinstance(uid, int):
+        raise SaltInvocationError('uid must be an integer')
+
+    return _update_attribute(name, kODAttributeTypeUniqueID, uid)
+
+
+def chgid(name, gid):
+    '''
+    Change the default group of the user
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' user.chgid foo 4376
+    '''
+    if not isinstance(gid, int):
+        raise SaltInvocationError('gid must be an integer')
+
+    return _update_attribute(name, kODAttributeTypePrimaryGroupID, uid)
+
+
+def chshell(name, shell):
+    '''
+    Change the default shell of the user
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' user.chshell foo /bin/zsh
+    '''
+    return _update_attribute(name, kODAttributeTypeUserShell, uid)
+
+
+def chhome(name, home, **kwargs):
+    '''
+    Change the home directory of the user
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' user.chhome foo /Users/foo
+    '''
+    kwargs = salt.utils.clean_kwargs(**kwargs)
+    persist = kwargs.pop('persist', False)
+    if kwargs:
+        salt.utils.invalid_kwargs(kwargs)
+    if persist:
+        log.info('Ignoring unsupported \'persist\' argument to user.chhome')
+
+    return _update_attribute(name, kODAttributeTypeNFSHomeDirectory, home)
+
+
+def chfullname(name, fullname):
+    '''
+    Change the user's Full Name
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' user.chfullname foo 'Foo Bar'
+    '''
+    if isinstance(fullname, string_types):
+        fullname = _sdecode(fullname)
+
+    return _update_attribute(name, kODAttributeTypeFullName, home)
+
+
+# TODO: chgroups
+
+
+def info(name):
+    '''
+    Return user information
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' user.info root
+    '''
+    user = _find_user('/Search', name)
+    if user is None:
+        return None
+
+    attrs, err = user.recordDetailsForAttributes_error_(None, None)
+    if err is not None:
+        log.error('failed to retrieve attributes for user {}, reason: {}'.format(name, err.localizedDescription()))
+
+    return _format_info(attrs)
+
+
+def _update_attribute(name, od_attribute, value, commit=True):
+    '''
+    Update an Open Directory attribute for the given user name.
+    :param name: username
+    :param od_attribute: attribute type (usually from kODAttributeType*)
+    :param value: The new value
+    :return: boolean value indicating whether the record was updated.
+    '''
+    user = _find_user('/Local/Default', name)
+    if user is None:
+        raise CommandExecutionError(
+            'user {} does not exist'.format(name)
+        )
+
+    didSet, err = record.setValue_forAttribute_error_(value, od_attribute, None)
+    if err is not None:
+        log.error('failed to set attribute {} on user {}, reason: {}'.format(od_attribute, name, err.localizedDescription()))
+
+    synced, err = record.synchronizeAndReturnError_(None)
+    if err is not None:
+        raise CommandExecutionError(
+            'could not save updated user record, reason: {}'.format(err.localizedDescription())
+        )
+
+    if not synced:
+        return False
+
+    return True
 
 
 def _get_node(path):
@@ -184,7 +376,7 @@ def _get_node(path):
 
     if err:
         raise CommandExecutionError(
-            'cannot retrieve ODNode instance, reason: {}'.format(err)
+            'cannot retrieve ODNode instance for path: {}, reason: {}'.format(path, err.localizedDescription())
         )
 
     return node
@@ -192,7 +384,7 @@ def _get_node(path):
 
 def _find_user(path, userName):
     '''
-    Find a user object in the local directory by their username
+    Find a user object in the local directory by their username.
     '''
     node = _get_node(path)
 
@@ -224,5 +416,13 @@ def _find_user(path, userName):
             'Failed to query opendirectory: {}'.format(err)
         )
 
-    return results
+    if results is None or len(results) == 0:
+        return None
+
+    if len(results) > 1:
+        raise CommandExecutionError(
+            'Expected user name {} to match only a single user, matched: {} result(s)'.format(userName, len(user))
+        )
+
+    return results[0]
 

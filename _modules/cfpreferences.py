@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-'''
+"""
 Alter property lists through the use of the CFPreferences API.
 (Just testing the possibility of using this API)
 
@@ -7,7 +7,7 @@ Alter property lists through the use of the CFPreferences API.
 :maturity:      new
 :depends:       objc
 :platform:      darwin
-'''
+"""
 
 import logging
 import salt.utils
@@ -16,10 +16,12 @@ log = logging.getLogger(__name__)  # Start logging
 
 HAS_LIBS = False
 try:
-    from CoreFoundation import CFPreferencesCopyValue, \
+    from CoreFoundation import CFGetTypeID, \
+        CFPreferencesCopyValue, \
         CFPreferencesSetValue, \
         CFPreferencesSynchronize, \
         CFPreferencesCopyMultiple, \
+        CFPreferencesCopyKeyList, \
         kCFPreferencesAnyUser, \
         kCFPreferencesAnyHost, \
         kCFPreferencesCurrentUser, \
@@ -32,9 +34,9 @@ except ImportError:
 __virtualname__ = 'cfpreferences'
 
 def __virtual__():
-    '''
+    """
     Only load if the platform is correct and we can use PyObjC libs
-    '''
+    """
     if not salt.utils.is_darwin():
         return False
 
@@ -44,8 +46,8 @@ def __virtual__():
     return __virtualname__
 
 
-def read(appid, key):
-    '''
+def read(appid, key, byHost=True):
+    """
     Get the preference value for an Application ID and requested key.
 
     appid
@@ -57,13 +59,20 @@ def read(appid, key):
     .. code-block:: bash
 
         salt '*' cfpreferences.read com.apple.Finder NSNavLastRootDirectory
-    '''
-    value = CFPreferencesCopyValue(key, appid, kCFPreferencesAnyUser, kCFPreferencesCurrentHost)
+    """
+    host = kCFPreferencesCurrentHost if byHost else kCFPreferencesAnyHost
+    value = CFPreferencesCopyValue(key, appid, kCFPreferencesAnyUser, host)
+
+    valueType = CFGetTypeID(value)
+
+    from pprint import pprint
+    pprint(valueType)
+
     return value
 
 
-def write(appid, key, value):
-    '''
+def write(appid, key, value, byHost=True):
+    """
     Write a simple preference value.
 
     appid
@@ -76,8 +85,25 @@ def write(appid, key, value):
 
         salt '*' cfpreferences.write com.example.test example a
 
-    '''
-    # didSync = CFPreferencesSynchronize(appid, kCFPreferencesAnyUser, kCFPreferencesCurrentHost)
-    CFPreferencesSetValue(key, value, appid, kCFPreferencesAnyUser, kCFPreferencesCurrentHost)
-    didSync = CFPreferencesSynchronize(appid, kCFPreferencesAnyUser, kCFPreferencesCurrentHost)
+    """
+    host = kCFPreferencesCurrentHost if byHost else kCFPreferencesAnyHost
+
+    CFPreferencesSetValue(key, value, appid, kCFPreferencesAnyUser, host)
+    didSync = CFPreferencesSynchronize(appid, kCFPreferencesAnyUser, host)
     return didSync
+
+
+def keys(appid, byHost=True):
+    """
+    Read a list of keys available
+
+    appid
+        Bundle identifier such as com.apple.Finder
+    """
+    host = kCFPreferencesCurrentHost if byHost else kCFPreferencesAnyHost
+
+    keyList = CFPreferencesCopyKeyList(appid, kCFPreferencesAnyUser, host)
+    if keyList is None:
+        return None
+    else:
+        return list(keyList)

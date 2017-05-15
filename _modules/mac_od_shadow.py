@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 '''
 Support for password and password policy modification via the DirectoryServices framework.
+Requires pip pyobjc-framework-OpenDirectory if using a different site-packages directory.
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      new

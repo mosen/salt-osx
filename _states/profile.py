@@ -71,7 +71,7 @@ def installed(name, **kwargs):
         **kwargs
     )
 
-    mcpath = salt.utils.mkstemp('mobileconfig', 'salt', None, True)
+    mcpath = salt.utils.files.mkstemp(suffix='mobileconfig', prefix='salt')
     f = open(mcpath, "w")
     f.write(content)
     f.close()
@@ -121,5 +121,3 @@ def absent(name):
             ret['comment'] = 'Failed to remove profile with identifier: {0}'.format(name)
 
         return ret
-
-

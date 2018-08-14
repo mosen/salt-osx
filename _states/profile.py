@@ -66,7 +66,7 @@ def installed(name, force=None, **kwargs):
 
     if exists and force:
         ret['comment'] = 'Profile already installed with identifier, will be overwritten: {0}'.format(name)
-    else:
+    elif exists:
         ret['comment'] = 'Profile already installed with identifier: {0}'.format(name)
         return ret
 

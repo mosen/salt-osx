@@ -28,7 +28,7 @@ def __virtual__():
     return __virtualname__ if salt.utils.is_darwin() else False
 
 
-def installed(name, **kwargs):
+def installed(name, force=None, **kwargs):
     '''
     Create and install the specified configuration profile, using the supplied payload content.
     This state module is not intended to be used at the command line.
@@ -36,6 +36,9 @@ def installed(name, **kwargs):
     name:
         The name of the resource is the payload identifier, which is used to determine whether the payload is
         installed.
+
+    force:
+        True or False, will overwrite existing profile with the same name.
 
     Keyword Arguments:
 
@@ -61,9 +64,12 @@ def installed(name, **kwargs):
 
     exists = __salt__['profile.exists'](name)
 
-    if exists:
+    if exists and force:
+        ret['comment'] = 'Profile already installed with identifier, will be overwritten: {0}'.format(name)
+    else:
         ret['comment'] = 'Profile already installed with identifier: {0}'.format(name)
         return ret
+
 
     content = __salt__['profile.generate'](
         name,

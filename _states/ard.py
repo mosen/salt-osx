@@ -41,7 +41,7 @@ __virtualname__ = 'ard'
 
 def __virtual__():
     """Only load on OSX"""
-    return __virtualname__ if salt.utils.is_darwin() else False
+    return __virtualname__ if salt.utils.platform.is_darwin() else False
 
 
 _PATHS = {

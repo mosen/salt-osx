@@ -33,7 +33,7 @@ except ImportError:
 
 
 def __virtual__():
-    if HAS_PASSLIB and salt.utils.is_darwin():
+    if HAS_PASSLIB and salt.utils.platform.is_darwin():
         return True
     else:
         return False

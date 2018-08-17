@@ -20,7 +20,7 @@ except ImportError:
     has_libs = False
 
 def __virtual__():
-    if salt.utils.is_darwin() and has_libs:
+    if salt.utils.platform.is_darwin() and has_libs:
         return __virtualname__
     else:
         return False

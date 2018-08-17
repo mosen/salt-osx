@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 __virtualname__ = 'ccextension'
 
 
-if salt.utils.is_darwin():
+if salt.utils.platform.is_darwin():
     EXMANCMD = '/Applications/Adobe Extension Manager CC/Adobe Extension Manager CC.app/Contents/MacOS/ExManCmd'
     PLATFORM_SWITCH = '--'
 elif salt.utils.is_windows():

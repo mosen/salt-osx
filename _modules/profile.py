@@ -17,6 +17,7 @@ import salt.exceptions
 import tempfile
 import os
 import plistlib
+import base64
 import uuid
 import hashlib
 import re
@@ -89,11 +90,14 @@ def _add_activedirectory_keys(payload):
                   'ADRestrictDDNS',
                   'ADTrustChangePassIntervalDays',
                   'ADUseWindowsUNCPath',
-                  'ADWarnUserBeforeCreatingMA']
+                  'ADWarnUserBeforeCreatingMA',
+                  'ADMapUIDAttribute',
+                  'ADMapGIDAttribute',
+                  'ADMapGGIDAttribute']
 
     for k in payload.keys():
         if k in needs_flag:
-            payload[needs_flag[k] + 'Flag'] = True
+            payload[str(k) + 'Flag'] = True
 
 
 def _transform_payload(payload, identifier):
@@ -107,21 +111,25 @@ def _transform_payload(payload, identifier):
     :param identifier:
     :return:
     '''
-    if 'PayloadUUID' in payload:
-        del payload['PayloadUUID']
-
     hashed_uuid = _content_to_uuid(payload)
+
+    if not 'PayloadUUID' in payload:
+        payload['PayloadUUID'] = hashed_uuid
 
     # No identifier supplied for the payload, so we generate one
     if 'PayloadIdentifier' not in payload:
         payload['PayloadIdentifier'] = "{0}.{1}".format(identifier, hashed_uuid)
 
-    payload['PayloadUUID'] = hashed_uuid
     payload['PayloadEnabled'] = True
     payload['PayloadVersion'] = 1
 
     if payload['PayloadType'] == 'com.apple.DirectoryService.managed':
         _add_activedirectory_keys(payload)
+
+    if'PayloadContent' in payload:
+        content = payload['PayloadContent']
+        decoded = base64.b64decode(content)
+        payload['PayloadContent'] = plistlib.Data(decoded)
 
     return payload
 

@@ -5,7 +5,7 @@ Add, modify, remove queues from the Common Unix Printing System
 
 import re
 import logging
-from salt.utils import which
+from salt.utils.path import which
 
 log = logging.getLogger(__name__)
 

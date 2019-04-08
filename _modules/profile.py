@@ -14,6 +14,7 @@ Manage locally installed configuration profiles (.mobileconfig)
 import logging
 import salt.utils
 import salt.exceptions
+import salt.utils.platform
 import tempfile
 import os
 import plistlib
@@ -22,6 +23,7 @@ import uuid
 import hashlib
 import re
 import binascii
+import pprint
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +31,10 @@ __virtualname__ = 'profile'
 
 
 def __virtual__():
-    return __virtualname__ if salt.utils.platform.is_darwin() else False
+    if salt.utils.platform.is_darwin():
+        return __virtualname__
+
+    return (False, 'module.profile only available on macOS.')
 
 
 def _content_to_uuid(payload):
@@ -39,6 +44,8 @@ def _content_to_uuid(payload):
     :param payload:
     :return:
     '''
+    log.debug('Attempting to Hash {}'.format(payload))
+
     str_payload = plistlib.writePlistToString(payload)
     hashobj = hashlib.md5(str_payload)
 
@@ -100,6 +107,61 @@ def _add_activedirectory_keys(payload):
             payload[str(k) + 'Flag'] = True
 
 
+def _check_top_level_key(old, new):
+    '''
+    checks the old and new profiles to see if there are any top level key
+    differences, returns a dictionary of whether they differ and if so what
+    the old and new keys pair differences are
+    '''
+    try:
+        log.debug('Checking top level key for profile "{}"'.format(
+            new['PayloadIdentifier']))
+    except KeyError as e:
+        log.warning(e)
+        pass
+
+    ret = {
+        'differ': False,
+        'old_kv': {},
+        'new_kv': {}
+    }
+    keys_to_check = [
+        'PayloadDescription',
+        'PayloadDisplayName',
+        'PayloadIdentifier',
+        'PayloadOrganization',
+        'PayloadRemovalDisallowed'
+    ]
+    for key, value in new.items():
+        log.trace('Checking top level key {}'.format(key))
+        if not key in keys_to_check:
+            log.trace('key {} not in our list of keys to validate'.format(key))
+            continue
+        if value == 'true':
+            value = True
+        if value == 'false':
+            value = False
+        try:
+            old_value = old[key.replace("Payload","Profile")]
+            if old_value == 'true':
+                old_value = True
+            if old_value == 'false':
+                old_value = False
+        except KeyError as e:
+            log.debug('_check_top_level_key: Caught KeyError on {} trying to replace.'.format(e))
+            continue
+
+        if value != old_value:
+            log.debug('Found difference in profile Key {}'.format(key))
+            ret['differ'] = True
+            new_goods = {key: value}
+            old_goods = {key: old_value}
+            ret['old_kv'].update(old_goods)
+            ret['new_kv'].update(new_goods)
+    log.trace('will return from profile: _check_top_level_key: {}'.format(ret))
+    return ret
+
+
 def _transform_payload(payload, identifier):
     '''
     Transform a payload by:
@@ -111,26 +173,28 @@ def _transform_payload(payload, identifier):
     :param identifier:
     :return:
     '''
+    if 'PayloadUUID' in payload:
+        log.debug('Found PayloadUUID in Payload removing')
+        del payload['PayloadUUID']
+
     hashed_uuid = _content_to_uuid(payload)
+    log.debug('hashed_uuid = {}'.format(hashed_uuid))
 
     if not 'PayloadUUID' in payload:
         payload['PayloadUUID'] = hashed_uuid
 
     # No identifier supplied for the payload, so we generate one
+    log.debug('Generating PayloadIdentifier')
     if 'PayloadIdentifier' not in payload:
         payload['PayloadIdentifier'] = "{0}.{1}".format(identifier, hashed_uuid)
 
     payload['PayloadEnabled'] = True
     payload['PayloadVersion'] = 1
-
-    if payload['PayloadType'] == 'com.apple.DirectoryService.managed':
-        _add_activedirectory_keys(payload)
-
-    if'PayloadContent' in payload:
-        content = payload['PayloadContent']
-        decoded = base64.b64decode(content)
-        payload['PayloadContent'] = plistlib.Data(decoded)
-
+    try:
+        if payload['PayloadType'] == 'com.apple.DirectoryService.managed':
+            _add_activedirectory_keys(payload)
+    except Exception as e:
+        pass
     return payload
 
 
@@ -142,11 +206,92 @@ def _transform_content(content, identifier):
     be compared (as with passwords, which are omitted).
     '''
     if not content:
+        log.debug('module.profile - Found empty content')
         return list()
+    log.debug('module.profile - Found GOOD content')
+    log.debug('{}  {}'.format(content, identifier))
+    transformed = []
+    for payload in content:
+        log.debug('module.profile - trying to transform {}'.format(payload))
+        transformed.append(_transform_payload(payload, identifier))
 
-    transformed = [_transform_payload(payload, identifier) for payload in content]
+    # transformed = [_transform_payload(payload, identifier) for payload in content]
 
     return transformed
+
+
+def validate(identifier, profile_dict):
+    '''will compare the installed identifier if one and get the uuid of the
+    payload content and compare against that.
+    '''
+    ret = {'installed': False,
+           'changed': False,
+           'old_payload': [],
+           'new_payload': []
+    }
+
+    new_prof_data = plistlib.readPlistFromString(profile_dict)
+
+    try:
+        new_prof_data_payload_con = new_prof_data['PayloadContent']
+        ret['new_payload'] = new_prof_data_payload_con
+    except KeyError:
+        pass
+
+    new_uuids = []
+
+    for item in new_prof_data_payload_con:
+        try:
+            new_uuids.append(item['PayloadUUID'])
+        except KeyError:
+            pass
+
+    current_items = __salt__['profile.item_keys'](identifier)
+
+    if not current_items:
+        log.debug('Could not find any item keys for {}'.format(identifier))
+        ret['old_payload'] = 'Not installed'
+        return ret
+
+    try:
+        current_profile_items = current_items['ProfileItems']
+        ret['old_payload'] = current_profile_items
+    except KeyError:
+        log.debug('Failed to get ProfileItems from installed Profile')
+        return ret
+
+    installed_uuids = []
+    for item in current_profile_items:
+        try:
+            installed_uuids.append(item['PayloadUUID'])
+        except KeyError:
+            pass
+
+    log.debug('Found installed uuids {}'.format(installed_uuids))
+
+    log.debug('Requested install UUIDs are {}'.format(new_uuids))
+
+    for uuid in new_uuids:
+        log.debug('Checking UUID "{}" to is if its installed'.format(uuid))
+        if uuid not in installed_uuids:
+            ret['changed'] = True
+            return ret
+        log.debug('Profile UUID of {} appears to be installed'.format(uuid))
+
+    # check the top keys to see if they differ.
+    top_keys = _check_top_level_key(current_items, new_prof_data)
+
+    if top_keys['differ']:
+        log.debug('Top Level Keys differ.')
+        ret['installed'] = False
+        ret['old_payload'] = top_keys['old_kv']
+        ret['new_payload'] = top_keys['new_kv']
+        return ret
+
+    # profile should be correctly installed.
+    ret['installed'] = True
+    return ret
+
 
 
 def items():
@@ -253,6 +398,7 @@ def generate(identifier, profile_uuid=None, **kwargs):
     VALID_PROPERTIES = ['description', 'displayname', 'organization', 'content', 'removaldisallowed', 'scope',
                         'removaldate', 'durationuntilremoval', 'consenttext']
 
+    log.debug('Looping through kwargs')
     validkwargs = {k: v for k, v in kwargs.iteritems() if k in VALID_PROPERTIES}
 
     document = {'PayloadScope': 'System', 'PayloadUUID': str(profile_uuid), 'PayloadVersion': 1,
@@ -313,3 +459,26 @@ def remove(identifier):
         )
 
     return True
+
+
+def item_keys(identifier):
+    '''
+    List all of the keys for an identifier and their values
+
+    identifier
+        The ProfileIdentifier
+
+    CLI Example:
+
+    .. code-block:: bash
+
+        salt '*' profiles.item_keys com.apple.mdm.hostname.local.ABCDEF
+    '''
+    profiles = items()
+
+    for domain, payload_content in profiles.items():
+        for payload in payload_content:
+            if payload['ProfileIdentifier'] == identifier:
+                return payload
+    log.warning('Profile identifier "{}" not found'.format(identifier))
+    return False

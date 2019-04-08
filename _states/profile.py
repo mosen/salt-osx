@@ -4,28 +4,41 @@ create and install configuration profiles.
 
  .. code-block:: yaml
 
-    com.example.profileidentifier:
-        profile:
-            - installed
-            - description: This description is shown underneath the display name
-            - displayname: Salt-OSX Example Profile
-            - organization: Salt-OSX Inc.
-            - removaldisallowed: False
-            - content:
+    example_state_profile:
+      profile.installed:
+        - name: example name
+        - description: 'Example Description'
+        - displayname: 'Managing a Preference'
+        - organization: MegaCorp
+        - removaldisallowed: True
+        - scope: System
+        - content:
+            - PayloadType: com.apple.ManagedClient.preferences
+              PayloadContent:
+                com.megacorp.preference: <- preference domain
+                  Forced:
+                    - mcx_preference_settings:
+                        ExamplePreferenceKey: True
                 ...
 
 '''
 import logging
 import salt.utils
+import salt.utils.platform
 import salt.exceptions
+import pprint
 
 
 log = logging.getLogger(__name__)
+
 __virtualname__ = 'profile'
 
 
 def __virtual__():
-    return __virtualname__ if salt.utils.platform.is_darwin() else False
+    if salt.utils.platform.is_darwin():
+        return __virtualname__
+
+    return (False, 'state.profile only available on macOS.')
 
 
 def installed(name, force=None, **kwargs):
@@ -64,20 +77,19 @@ def installed(name, force=None, **kwargs):
 
     exists = __salt__['profile.exists'](name)
 
-    if exists and force:
-        ret['comment'] = 'Profile already installed with identifier, will be overwritten: {0}'.format(name)
-    elif exists:
-        ret['comment'] = 'Profile already installed with identifier: {0}'.format(name)
-        return ret
-
-
     content = __salt__['profile.generate'](
         name,
         None,
         **kwargs
     )
 
-    mcpath = salt.utils.files.mkstemp(suffix='mobileconfig', prefix='salt')
+    valid = __salt__['profile.validate'](name, content)
+
+    if exists and valid['installed']:
+        ret['comment'] = 'Profile identifier "{}", already installed.'.format(name)
+        return ret
+
+    mcpath = __salt__['temp.file']('.mobileconfig', 'salt')
     f = open(mcpath, "w")
     f.write(content)
     f.close()
@@ -87,16 +99,20 @@ def installed(name, force=None, **kwargs):
     if __opts__['test']:
         ret['result'] = None
         ret['comment'] = 'New profile would have been generated, property list follows: {0}'.format(content)
+        ret['changes'] = {name: 'need to make profile'}
         return ret
-    else:
-        success = __salt__['profile.install'](mcpath)
-        ret['result'] = success
-        if success:
-            ret['comment'] = 'Profile with identifier:{0} installed successfully.'.format(name)
-        else:
-            ret['comment'] = 'Failed to install profile with identifier:{0}'.format(name)
 
+    success = __salt__['profile.install'](mcpath)
+    ret['result'] = success
+    if success:
+        ret['comment'] = 'Profile "{0}", installed successfully.'.format(name)
+        ret['changes'].update({name: {'Old Profile': valid['old_payload'],
+                                        'New Profile': valid['new_payload']}})
+    else:
+        ret['comment'] = 'Failed to install profile with identifier: "{0}"'.format(name)
         return ret
+
+    return ret
 
 
 def absent(name):
@@ -118,12 +134,15 @@ def absent(name):
         ret['result'] = None
         ret['comment'] = 'Profile with identifier: {0} would have been removed.'.format(name)
         return ret
-    else:
-        success = __salt__['profile.remove'](name)
-        ret['result'] = success
-        if success:
-            ret['comment'] = 'Profile with identifier: {0} successfully removed'.format(name)
-        else:
-            ret['comment'] = 'Failed to remove profile with identifier: {0}'.format(name)
 
-        return ret
+    success = __salt__['profile.remove'](name)
+
+    if success:
+        ret['comment'] = 'Profile with identifier: {0} successfully removed'.format(name)
+        ret['changes'].update({name: {'old': 'Installed',
+                                      'new': 'Removed'}})
+    else:
+        ret['result'] = False
+        ret['comment'] = 'Failed to remove profile with identifier: {0}'.format(name)
+
+    return ret

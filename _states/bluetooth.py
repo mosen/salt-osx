@@ -9,7 +9,7 @@ import salt.utils
 
 def __virtual__():
     """Only load on OSX"""
-    return 'bluetooth' if salt.utils.is_darwin() else False
+    return 'bluetooth' if salt.utils.platform.is_darwin() else False
 
 
 def managed(name, enabled, discoverable=True):

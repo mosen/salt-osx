@@ -22,7 +22,7 @@ __virtualname__ = 'security'
 
 
 def __virtual__():
-    return __virtualname__ if salt.utils.is_darwin() else False
+    return __virtualname__ if salt.utils.platform.is_darwin() else False
 
 
 def _parse_attr_line(line):

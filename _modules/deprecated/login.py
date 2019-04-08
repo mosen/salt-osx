@@ -40,7 +40,7 @@ def __virtual__():
     '''
     Only load if the platform is correct and we can use PyObjC libs
     '''
-    if not salt.utils.is_darwin():
+    if not salt.utils.platform.is_darwin():
         log.warning('Cant load OS X login module because platform is not Darwin')
         return False
 

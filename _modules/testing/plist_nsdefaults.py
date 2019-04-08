@@ -30,7 +30,7 @@ def __virtual__():
     '''
     Only load if the platform is correct and we can use PyObjC libs
     '''
-    if not salt.utils.is_darwin():
+    if not salt.utils.platform.is_darwin():
         return False
 
     if not HAS_LIBS:

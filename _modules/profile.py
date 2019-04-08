@@ -18,6 +18,7 @@ import salt.utils.platform
 import tempfile
 import os
 import plistlib
+import base64
 import uuid
 import hashlib
 import re
@@ -96,11 +97,69 @@ def _add_activedirectory_keys(payload):
                   'ADRestrictDDNS',
                   'ADTrustChangePassIntervalDays',
                   'ADUseWindowsUNCPath',
-                  'ADWarnUserBeforeCreatingMA']
+                  'ADWarnUserBeforeCreatingMA',
+                  'ADMapUIDAttribute',
+                  'ADMapGIDAttribute',
+                  'ADMapGGIDAttribute']
 
     for k in payload.keys():
         if k in needs_flag:
-            payload[needs_flag[k] + 'Flag'] = True
+            payload[str(k) + 'Flag'] = True
+
+
+def _check_top_level_key(old, new):
+    '''
+    checks the old and new profiles to see if there are any top level key
+    differences, returns a dictionary of whether they differ and if so what
+    the old and new keys pair differences are
+    '''
+    try:
+        log.debug('Checking top level key for profile "{}"'.format(
+            new['PayloadIdentifier']))
+    except KeyError as e:
+        log.warning(e)
+        pass
+
+    ret = {
+        'differ': False,
+        'old_kv': {},
+        'new_kv': {}
+    }
+    keys_to_check = [
+        'PayloadDescription',
+        'PayloadDisplayName',
+        'PayloadIdentifier',
+        'PayloadOrganization',
+        'PayloadRemovalDisallowed'
+    ]
+    for key, value in new.items():
+        log.trace('Checking top level key {}'.format(key))
+        if not key in keys_to_check:
+            log.trace('key {} not in our list of keys to validate'.format(key))
+            continue
+        if value == 'true':
+            value = True
+        if value == 'false':
+            value = False
+        try:
+            old_value = old[key.replace("Payload","Profile")]
+            if old_value == 'true':
+                old_value = True
+            if old_value == 'false':
+                old_value = False
+        except KeyError as e:
+            log.debug('_check_top_level_key: Caught KeyError on {} trying to replace.'.format(e))
+            continue
+
+        if value != old_value:
+            log.debug('Found difference in profile Key {}'.format(key))
+            ret['differ'] = True
+            new_goods = {key: value}
+            old_goods = {key: old_value}
+            ret['old_kv'].update(old_goods)
+            ret['new_kv'].update(new_goods)
+    log.trace('will return from profile: _check_top_level_key: {}'.format(ret))
+    return ret
 
 
 def _check_top_level_key(old, new):
@@ -176,12 +235,14 @@ def _transform_payload(payload, identifier):
     hashed_uuid = _content_to_uuid(payload)
     log.debug('hashed_uuid = {}'.format(hashed_uuid))
 
+    if not 'PayloadUUID' in payload:
+        payload['PayloadUUID'] = hashed_uuid
+
     # No identifier supplied for the payload, so we generate one
     log.debug('Generating PayloadIdentifier')
     if 'PayloadIdentifier' not in payload:
         payload['PayloadIdentifier'] = "{0}.{1}".format(identifier, hashed_uuid)
 
-    payload['PayloadUUID'] = hashed_uuid
     payload['PayloadEnabled'] = True
     payload['PayloadVersion'] = 1
     try:

@@ -23,7 +23,7 @@ import salt.utils
 
 def __virtual__():
     """Only load on OSX"""
-    return 'plist' if salt.utils.is_darwin() else False
+    return 'plist' if salt.utils.platform.is_darwin() else False
 
 
 def managed_keys(name, **keys):

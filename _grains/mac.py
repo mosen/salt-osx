@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 __virtualname__ = 'mac'
 
 def __virtual__():
-    if salt.utils.is_darwin():
+    if salt.utils.platform.is_darwin():
         return __virtualname__
     else:
         return False

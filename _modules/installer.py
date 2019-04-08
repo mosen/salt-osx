@@ -47,7 +47,7 @@ log = logging.getLogger(__name__)
 __virtualname__ = 'installer'
 
 def __virtual__():
-    return __virtualname__ if salt.utils.is_darwin() else False
+    return __virtualname__ if salt.utils.platform.is_darwin() else False
 
 
 def _install_pkg(pkgpath, choicesXMLpath=None, suppressBundleRelocation=False,

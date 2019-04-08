@@ -41,7 +41,7 @@ def __virtual__():
     return (False, 'state.profile only available on macOS.')
 
 
-def installed(name, **kwargs):
+def installed(name, force=None, **kwargs):
     '''
     Create and install the specified configuration profile, using the supplied payload content.
     This state module is not intended to be used at the command line.
@@ -49,6 +49,9 @@ def installed(name, **kwargs):
     name:
         The name of the resource is the payload identifier, which is used to determine whether the payload is
         installed.
+
+    force:
+        True or False, will overwrite existing profile with the same name.
 
     Keyword Arguments:
 

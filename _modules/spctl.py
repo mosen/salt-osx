@@ -19,7 +19,7 @@ def __virtual__():
     '''
     Only load module if we are running on OS X.
     '''
-    return __virtualname__ if salt.utils.is_darwin() else False
+    return __virtualname__ if salt.utils.platform.is_darwin() else False
 
 
 def enabled():

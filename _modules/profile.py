@@ -11,19 +11,23 @@ Manage locally installed configuration profiles (.mobileconfig)
 :platform:      darwin
 '''
 
+
+import base64
+import binascii
+import hashlib
 import logging
-import salt.utils
-import salt.exceptions
-import salt.utils.platform
-import tempfile
 import os
 import plistlib
-import base64
-import uuid
-import hashlib
-import re
-import binascii
 import pprint
+import re
+import tempfile
+import uuid
+
+import salt.exceptions
+import salt.utils
+import salt.utils.platform
+import six
+
 
 log = logging.getLogger(__name__)
 
@@ -46,15 +50,18 @@ def _content_to_uuid(payload):
     '''
     log.debug('Attempting to Hash {}'.format(payload))
 
-    str_payload = plistlib.writePlistToString(payload)
+    if six.PY3:
+        str_payload = plistlib.dumps(payload)
+    else:
+        str_payload = plistlib.writePlistToString(payload)
     hashobj = hashlib.md5(str_payload)
 
     identifier = re.sub(
-        '([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})',
-        '\\1-\\2-\\3-\\4-\\5',
+        b'([0-9a-f]{8})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{4})([0-9a-f]{12})',
+        b'\\1-\\2-\\3-\\4-\\5',
         binascii.hexlify(hashobj.digest()))
 
-    return identifier
+    return identifier.decode()
 
 
 def _add_activedirectory_keys(payload):
@@ -285,7 +292,10 @@ def validate(identifier, profile_dict):
            'new_payload': []
     }
 
-    new_prof_data = plistlib.readPlistFromString(profile_dict)
+    if six.PY3:
+        new_prof_data = plistlib.loads(profile_dict)
+    else:
+        new_prof_data = plistlib.readPlistFromString(profile_dict)
 
     try:
         new_prof_data_payload_con = new_prof_data['PayloadContent']
@@ -346,7 +356,6 @@ def validate(identifier, profile_dict):
     # profile should be correctly installed.
     ret['installed'] = True
     return ret
-
 
 
 def items():
@@ -454,7 +463,7 @@ def generate(identifier, profile_uuid=None, **kwargs):
                         'removaldate', 'durationuntilremoval', 'consenttext']
 
     log.debug('Looping through kwargs')
-    validkwargs = {k: v for k, v in kwargs.iteritems() if k in VALID_PROPERTIES}
+    validkwargs = {k: v for k, v in kwargs.items() if k in VALID_PROPERTIES}
 
     document = {'PayloadScope': 'System', 'PayloadUUID': str(profile_uuid), 'PayloadVersion': 1,
                 'PayloadType': 'Configuration', 'PayloadIdentifier': identifier}
@@ -478,7 +487,10 @@ def generate(identifier, profile_uuid=None, **kwargs):
         elif k == 'removaldisallowed':
             document['PayloadRemovalDisallowed'] = (v is True)
 
-    plist_content = plistlib.writePlistToString(document)
+    if six.PY3:
+        plist_content = plistlib.dumps(document)
+    else:
+        plist_content = plistlib.writePlistToString(document)
     return plist_content
 
 

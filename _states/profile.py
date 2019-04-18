@@ -22,11 +22,14 @@ create and install configuration profiles.
                 ...
 
 '''
+
+
 import logging
+import pprint
+
+import salt.exceptions
 import salt.utils
 import salt.utils.platform
-import salt.exceptions
-import pprint
 
 
 log = logging.getLogger(__name__)
@@ -90,7 +93,7 @@ def installed(name, force=None, **kwargs):
         return ret
 
     mcpath = __salt__['temp.file']('.mobileconfig', 'salt')
-    f = open(mcpath, "w")
+    f = open(mcpath, "wb")
     f.write(content)
     f.close()
 

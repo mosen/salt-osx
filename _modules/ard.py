@@ -9,11 +9,12 @@ manage the "remote management" service via kickstart and property lists.
 '''
 # This would not have been possible without the hard work from dayglojesus/managedmac
 
-import os
-import logging
 import binascii
-import salt.utils
+import logging
+import os
+
 from salt.exceptions import CommandExecutionError
+import salt.utils
 
 log = logging.getLogger(__name__)
 

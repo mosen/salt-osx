@@ -85,7 +85,7 @@ _NAPRIVS = {
     'restart_shutdown': _NAPRIV_RESTART_SHUTDOWN
 }
 
-_NAPRIVS_FLIP = {y: x for x, y in _NAPRIVS.iteritems()}
+_NAPRIVS_FLIP = {y: x for x, y in _NAPRIVS.items()}
 
 
 def __virtual__():
@@ -137,7 +137,7 @@ def _naprivs_to_list(naprivs):
     if naprivs & _NAPRIV_ALL == _NAPRIV_ALL:
         privs = ['all']
     else:
-        privs = [k for k, v in _NAPRIVS.iteritems() if naprivs & v == v]
+        privs = [k for k, v in _NAPRIVS.items() if naprivs & v == v]
 
     if _is_notified(naprivs):
         privs.append('observe_notified')
@@ -352,7 +352,7 @@ def users(human=True):
     if not human:
         return privs
 
-    privs_human = {user: _naprivs_to_list(int(privs)) for user, privs in privs.iteritems()}
+    privs_human = {user: _naprivs_to_list(int(privs)) for user, privs in privs.items()}
     return privs_human
 
 

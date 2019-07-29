@@ -13,8 +13,8 @@ import binascii
 import logging
 import os
 
-from salt.exceptions import CommandExecutionError
 import salt.utils
+from salt.exceptions import CommandExecutionError
 
 log = logging.getLogger(__name__)
 

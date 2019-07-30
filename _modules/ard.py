@@ -225,14 +225,10 @@ def active():
     #     log.debug('Not listening on tcp 3283 (remote desktop)')
     #     return False
 
-    # Is the trigger file present?
-    if not os.path.isfile(_PATHS['trigger']):
-        log.debug('Remote Management trigger file: {0} does not exist.'.format(_PATHS['trigger']))
-        return False
-
     # Is the ARDAgent process running?
     # TODO: OSX implementation ps.pgrep
-    if not __salt__['cmd.retcode']('ps axc | grep ARDAgent > /dev/null', python_shell=False) == 0:
+    if not __salt__['cmd.retcode'](
+            'ps axc | grep ARDAgent &> /dev/null', python_shell=True, ignore_retcode=True) == 0:
         log.debug('ARDAgent process is not running.')
         return False
 

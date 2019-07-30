@@ -4,7 +4,7 @@ manage the "remote management" service via kickstart and property lists.
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      beta
-:depends:       plist
+:depends:       mac_prefs
 :platform:      darwin
 '''
 # This would not have been possible without the hard work from dayglojesus/managedmac

@@ -59,7 +59,7 @@ _ATTR_TO_KEY = {
 _KEY_TO_ATTR = {y: x for x, y in _ATTR_TO_KEY.items()}
 
 
-def managed(name, enabled=True, **kwargs):
+def managed(name, enabled=None, **kwargs):
     '''
     Enforce "remote management" (ARD) service settings.
     per-user privileges are set via the ard.privileges state.
@@ -67,8 +67,9 @@ def managed(name, enabled=True, **kwargs):
     name
         This is mostly irrelevant since the settings are system wide.
 
-    enabled : True
-        Whether the remote management service is active and should start on boot.
+    enabled : None
+        Whether the remote management service is active and should start on boot. If this param is
+        omitted, the service will not be enabled or disabled.
 
     allow_all_users
         Should all local users be allowed to connect?

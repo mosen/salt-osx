@@ -272,12 +272,21 @@ def set_(name, value, domain, user=None, host=None, runas=None):
 
 def list_(name, user, host, runas=None, values=False):
     '''
-    List all Keys in the given doamin.
+    List all Keys in the given domain.
 
     name
         The preference domain to get keys from.
 
-    value
+    user
+        The user domain to use, either 'current' or 'any'
+
+    host
+        The host domain to use, either 'current' or 'any'
+
+    runas
+        The user to run as should be a short username.
+
+    values
         Pass true to return a dictionary of the key value pairs.
 
     :rtype: list,dict
@@ -286,8 +295,8 @@ def list_(name, user, host, runas=None, values=False):
 
     .. code-block:: bash
 
-        salt '*' prefs.list com.apple.ScreenSaver
-        salt '*' prefs.list com.apple.ScreenSaver True
+        salt '*' prefs.list com.apple.RemoteManagement any any values=True
+        salt '*' prefs.list com.apple.ScreenSaver current current runas=deadb33f
     '''
 
     log.debug('Gathering Key List for {}'.format(name))

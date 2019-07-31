@@ -129,8 +129,8 @@ def managed(name, enabled=None, **kwargs):
         changes['new']['directory_groups'] = kwargs['directory_groups']
 
     desired_prefs = {_ATTR_TO_KEY[k]: v for k, v in kwargs.items() if k in _ATTR_TO_KEY}
-    prefs_to_set = {k: v for k, v in desired_prefs.items() if v != current_prefs[k]}
-    incorrect_prefs = {k: current_prefs[k] for k in prefs_to_set}
+    prefs_to_set = {k: v for k, v in desired_prefs.items() if v != current_prefs.get(k)}
+    incorrect_prefs = {k: current_prefs.get(k, 'NOT SET') for k in prefs_to_set}
     if prefs_to_set:
         changes['old'].update(incorrect_prefs)
         changes['new'].update(prefs_to_set)

@@ -4,16 +4,19 @@ manage the "remote management" service via kickstart and property lists.
 
 :maintainer:    Mosen <mosen@github.com>
 :maturity:      beta
-:depends:       plist
+:depends:       mac_prefs
 :platform:      darwin
 '''
 # This would not have been possible without the hard work from dayglojesus/managedmac
 
-import os
-import logging
 import binascii
+import logging
+import os
+
 import salt.utils
 from salt.exceptions import CommandExecutionError
+from salt.ext import six
+
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +31,12 @@ _PATHS = {
 }
 
 # This number is used for basic XOR encryption by the VNC service.
-_VNC_SEED = '1734516E8BA8C5E2FF1C39567390ADCA'
+# TODO: Remove legacy python block.
+if six.PY2:
+    # Python 2 handles bytes very differently from python 3.
+    _VNC_SEED = '1734516E8BA8C5E2FF1C39567390ADCA'
+else:
+    _VNC_SEED = bytes.fromhex('1734516E8BA8C5E2FF1C39567390ADCA')
 
 # Directly lifted from managedmac:
 # Privileges are are represented using a signed integer stored as a
@@ -84,7 +92,7 @@ _NAPRIVS = {
     'restart_shutdown': _NAPRIV_RESTART_SHUTDOWN
 }
 
-_NAPRIVS_FLIP = {y: x for x, y in _NAPRIVS.iteritems()}
+_NAPRIVS_FLIP = {y: x for x, y in _NAPRIVS.items()}
 
 
 def __virtual__():
@@ -94,6 +102,7 @@ def __virtual__():
     return __virtualname__ if salt.utils.platform.is_darwin() else False
 
 
+# TODO: Remove with python2 support.
 def _xorhexs(xor, value):
     '''
     Generate XORed string value.
@@ -112,6 +121,27 @@ def _xorhexs(xor, value):
 
     result = reduce(reduce_xor, xor_list, '')
     return result
+
+
+def _xor_cipher(key, value):
+    """xor two bytes objs together, zero padding the value if needed.
+
+    Args:
+        key (bytes): The key used for ciphering. For Apple's VNC
+            password, this should be 16 bytes long.
+        value (bytes): The value to cipher/decipher. For Apple's VNC, it
+            should be no more than 8 characters.
+
+    Returns:
+        bytes of len(key).
+    """
+    # We zero pad the value as Apple stores a 16 byte value no matter
+    # what, even though the max VNC password is 8 bytes long.
+    klen, vlen = len(key), len(value)
+    if klen > vlen:
+        value += b'\00' * (klen - vlen)
+
+    return bytes([a ^ b for a, b in zip(key, value)])
 
 
 def _is_notified(naprivs):
@@ -136,7 +166,7 @@ def _naprivs_to_list(naprivs):
     if naprivs & _NAPRIV_ALL == _NAPRIV_ALL:
         privs = ['all']
     else:
-        privs = [k for k, v in _NAPRIVS.iteritems() if naprivs & v == v]
+        privs = [k for k, v in _NAPRIVS.items() if naprivs & v == v]
 
     if _is_notified(naprivs):
         privs.append('observe_notified')
@@ -195,14 +225,10 @@ def active():
     #     log.debug('Not listening on tcp 3283 (remote desktop)')
     #     return False
 
-    # Is the trigger file present?
-    if not os.path.isfile(_PATHS['trigger']):
-        log.debug('Remote Management trigger file: {0} does not exist.'.format(_PATHS['trigger']))
-        return False
-
     # Is the ARDAgent process running?
     # TODO: OSX implementation ps.pgrep
-    if not __salt__['cmd.retcode']('ps axc | grep ARDAgent > /dev/null', python_shell=False) == 0:
+    if not __salt__['cmd.retcode'](
+            'ps axc | grep ARDAgent &> /dev/null', python_shell=True, ignore_retcode=True) == 0:
         log.debug('ARDAgent process is not running.')
         return False
 
@@ -241,59 +267,113 @@ def deactivate():
     return output
 
 
-def vncpw():
-    '''
-    Retrieve the current VNC password.
+# TODO: Remove with legacy python support.
+if six.PY2:
+    def vncpw():
+        '''
+        Retrieve the current VNC password.
 
-    CLI Example:
+        CLI Example:
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-        salt '*' ard.vncpw
-    '''
-    passwordPath = _PATHS['vnc_password']
+            salt '*' ard.vncpw
+        '''
+        passwordPath = _PATHS['vnc_password']
 
-    if not os.path.isfile(passwordPath):
-        return None
+        if not os.path.isfile(passwordPath):
+            return None
 
-    f = open(passwordPath, 'r')
+        f = open(passwordPath, 'r')
 
-    try:
-        crypted_string = f.read()
-        password = _xorhexs(_VNC_SEED, crypted_string).strip("\x00")  # XOR and strip NULs
-    finally:
-        f.close()
+        try:
+            crypted_string = f.read()
+            password = _xorhexs(_VNC_SEED, crypted_string).strip("\x00")  # XOR and strip NULs
+        finally:
+            f.close()
 
-    return password
+        return password
 
 
-def set_vncpw(password=None):
-    '''
-    Set the current VNC password.
+    def set_vncpw(password=None):
+        '''
+        Set the current VNC password.
 
-    password
-        The password to set. If empty, the current password will be removed.
+        password
+            The password to set. If empty, the current password will be removed.
 
-    CLI Example:
+        CLI Example:
 
-    .. code-block:: bash
+        .. code-block:: bash
 
-        salt '*' ard.set_vncpw password
-    '''
-    if password is None and os.path.isfile(_PATHS['vnc_password']):
-        os.unlink(_PATHS['vnc_password'])
+            salt '*' ard.set_vncpw password
+        '''
+        if password is None and os.path.isfile(_PATHS['vnc_password']):
+            os.unlink(_PATHS['vnc_password'])
 
-    hex_password = binascii.hexlify(password) if password else None
-    crypted = _xorhexs(_VNC_SEED, hex_password)
+        hex_password = binascii.hexlify(password) if password else None
+        crypted = _xorhexs(_VNC_SEED, hex_password)
 
-    f = open(_PATHS['vnc_password'], 'w')
+        f = open(_PATHS['vnc_password'], 'w')
 
-    try:
-        f.write(binascii.hexlify(crypted))
-    finally:
-        f.close()
+        try:
+            f.write(binascii.hexlify(crypted))
+        finally:
+            f.close()
 
-    return True
+        return True
+
+else:
+    # Python 3 edition
+    def vncpw():
+        '''
+        Retrieve the current VNC password.
+
+        CLI Example:
+
+        .. code-block:: bash
+
+            salt '*' ard.vncpw
+        '''
+        password_path = _PATHS['vnc_password']
+        password = None
+
+        if os.path.isfile(password_path):
+            with open(password_path) as handle:
+                crypted_string = handle.read()
+                # Decipher the stored password, stripping null bytes
+                # that have been padded on (Apple always stores 16
+                # bytes).
+                password = _xor_cipher(
+                    _VNC_SEED, bytes.fromhex(crypted_string)).strip(b'\x00').decode()
+
+        return password
+
+
+    def set_vncpw(password=''):
+        '''
+        Set the current VNC password.
+
+        password
+            The password to set. If empty, the current password will be removed.
+
+        CLI Example:
+
+        .. code-block:: bash
+
+            salt '*' ard.set_vncpw password
+        '''
+        ciphered = _xor_cipher(_VNC_SEED, password.encode())
+        # Turn bytes into a base 16 string representation of itself.
+        # e.g. 5, 245 97 = '05F561'
+        # This is how Apple stores the password.
+        hex_ciphered = ciphered.hex().upper()
+
+        with open(_PATHS['vnc_password'], 'w') as ofile:
+            ofile.write(hex_ciphered)
+
+        return True
+
 
 
 def user_privs(username, human=True):
@@ -351,7 +431,7 @@ def users(human=True):
     if not human:
         return privs
 
-    privs_human = {user: _naprivs_to_list(int(privs)) for user, privs in privs.iteritems()}
+    privs_human = {user: _naprivs_to_list(int(privs)) for user, privs in privs.items()}
     return privs_human
 
 

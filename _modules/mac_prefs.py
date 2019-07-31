@@ -109,6 +109,7 @@ def _read_pref(name, domain, user, host, runas):
 
     if user:
         user_domain, host_domain = _get_user_and_host(user, host)
+        log.debug('Reading key: "{}" in domain: "{}"'.format(name, domain))
         value = Foundation.CFPreferencesCopyValue(name,
                                                   domain,
                                                   user_domain,
@@ -119,8 +120,7 @@ def _read_pref(name, domain, user, host, runas):
     #need to bring ourselves back up to root
     path = '/var/root/Library/Preferences/'
     d_path = os.path.join(path, domain)
-    log.debug('Reading key: "{}" in'
-              ' domain: "{}" at "{}"'.format(name, domain, d_path))
+    log.debug('Reading key: "{}" in domain: "{}" at "{}"'.format(name, domain, d_path))
     return Foundation.CFPreferencesCopyAppValue(name, domain)
 
 
@@ -315,7 +315,8 @@ def list_(name, user, host, runas=None, values=False):
         os.seteuid(uid)
     key_list = Foundation.CFPreferencesCopyKeyList(name, user_domain, host_domain)
     os.seteuid(0)
-    con_key_list = _convert_pyobjc_objects(key_list)
+    con_key_list = _convert_pyobjc_objects(key_list) or []
+    log.debug('Key list: "{}"'.format(con_key_list))
     if not values:
         return con_key_list
 
@@ -324,7 +325,9 @@ def list_(name, user, host, runas=None, values=False):
     try:
         for item in con_key_list:
             value_dict[item] = read(item, name, user, host, runas)
-    except TypeError:
+    except TypeError as exception:
         return None
+
+    log.debug('Values List: "{}"'.format(value_dict))
 
     return value_dict

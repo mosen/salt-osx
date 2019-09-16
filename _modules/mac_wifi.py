@@ -6,15 +6,10 @@ Module for configuring WiFi settings on macOS.
         Requires the PyObjC Library that is bundled with the macOS installer
         package as of 2019.2.0.
 '''
-import salt.utils
-import salt.utils.platform
-import logging
-import sys
-import os.path
 import collections
-from salt.exceptions import CommandExecutionError
-
-log = logging.getLogger(__name__)
+import logging
+import os.path
+import sys
 
 try:
     import objc, ctypes.util
@@ -23,7 +18,13 @@ try:
 except ImportError:
     PYOBJC = False
 
+import salt.utils
+import salt.utils.platform
+from salt.exceptions import CommandExecutionError
+
+
 __virtualname__ = 'wifi'
+log = logging.getLogger(__name__)
 
 
 def __virtual__():
@@ -38,15 +39,32 @@ def __virtual__():
 
 
 def _load_objc_framework(framework_name):
-    """
-    Utility function that loads a Framework bundle and creates a named tuple
-    where the attributes are the loaded classes from the Framework bundle
+    """Load an ObjC Framework bundle.
+
+    :param str framework_name: framework_name (str): The name of the
+        framework to load.
+
+    :return: Generic class instance with public framework contents
+        attached as attributes and methods.
+
+    :rtype: object
     """
     log.trace('wifi._load_objc_framework: loading {}.'.format(framework_name))
     loaded_classes = dict()
-    framework_bundle = objc.loadBundle(framework_name, bundle_path=os.path.dirname(ctypes.util.find_library(framework_name)), module_globals=loaded_classes)
-    loaded_classes = dict([x for x in loaded_classes.items() if not x[0].startswith('_')])
-    return collections.namedtuple('AttributedFramework', loaded_classes.keys())(**loaded_classes)
+    framework_bundle = objc.loadBundle(
+        framework_name,
+        bundle_path=os.path.dirname(ctypes.util.find_library(framework_name)),
+        module_globals=loaded_classes)
+
+    class AttributedFramework():
+        pass
+
+    framework = AttributedFramework()
+    for name, loaded_class in loaded_classes.items():
+        if not name.startswith('_'):
+            setattr(framework, name, loaded_class)
+    return framework
+
 
 def _get_configuration(CoreWLAN, interface):
     configuration_copy = CoreWLAN.CWMutableConfiguration.alloc().initWithConfiguration_(

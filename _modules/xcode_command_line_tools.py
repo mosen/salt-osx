@@ -53,8 +53,10 @@ def install():
     available_updates = __salt__['softwareupdate.list_available']()
     # Example label 10.14:
     # Command Line Tools (macOS Mojave version 10.14) for Xcode-10.3
-    # Example label 10.15:
+    # Example label Beta:
     # Command Line Tools beta 6 for Xcode-11.0
+    # Example Catalina result:
+    # Command Line Tools for Xcode-11.0
 
     pattern = re.compile(r'Command Line Tools [\(\)\w\s.]+ for Xcode-[\d.]+')
 

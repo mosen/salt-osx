@@ -51,6 +51,7 @@ def install():
         trigger_handle.write('')
 
     available_updates = __salt__['softwareupdate.list_available']()
+    logging.debug('Available updates: %s', available_updates)
     # Example label 10.14:
     # Command Line Tools (macOS Mojave version 10.14) for Xcode-10.3
     # Example label Beta:
@@ -58,7 +59,7 @@ def install():
     # Example Catalina result:
     # Command Line Tools for Xcode-11.0
 
-    pattern = re.compile(r'Command Line Tools [\(\)\w\s.]+ for Xcode-[\d.]+')
+    pattern = re.compile(r'Command Line Tools[\(\)\w\s.]* for Xcode-[\d.]+')
 
     # Filter out versions that aren't for this OS release.
     candidates = [(update, version) for update, version in available_updates.items()

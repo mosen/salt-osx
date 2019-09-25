@@ -80,7 +80,7 @@ def install():
     # offer the command line tools.
     try:
         os.unlink(trigger)
-    except OSError:
+    except (OSError, FileNotFoundError):
         # The file got removed already.
         pass
 

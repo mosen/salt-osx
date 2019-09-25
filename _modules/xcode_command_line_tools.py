@@ -78,7 +78,11 @@ def install():
 
     # Remove the trigger file so softwareupdate doesn't continue to
     # offer the command line tools.
-    os.unlink(trigger)
+    try:
+        os.unlink(trigger)
+    except OSError:
+        # The file got removed already.
+        pass
 
     return result
 

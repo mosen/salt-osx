@@ -43,10 +43,9 @@ def install():
 
         salt '*' xcode_command_line_tools.install
     """
-    trigger = "/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
-
     # Touch the trigger file to coerce softwareupdate into offering the
     # command line tools.
+    trigger = "/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
     with open(trigger, 'w') as trigger_handle:
         trigger_handle.write('')
 
@@ -81,7 +80,8 @@ def install():
     try:
         os.unlink(trigger)
     except (OSError, FileNotFoundError):
-        # The file got removed already.
+        # The file got removed already, possibly by the user.
+        # Nothing else to do.
         pass
 
     return result

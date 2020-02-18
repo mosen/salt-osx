@@ -74,7 +74,7 @@ def _get_configuration(CoreWLAN, interface):
 
 def _get_available_wifi_interfaces(CoreWLAN):
     interfaces = dict()
-    for name in CoreWLAN.CWInterface.interfaceNames():
+    for name in CoreWLAN.CWInterface.interfaceNames() or []:
         try:
             interfaces[name] = CoreWLAN.CWInterface.interfaceWithName_(name)
         except TypeError:
@@ -106,6 +106,9 @@ def _manipulate_wifi(name, func, just_ssids=False, just_profiles=False):
     '''
     CoreWLAN = _load_objc_framework('CoreWLAN')
     interfaces = _get_available_wifi_interfaces(CoreWLAN)
+
+    if not interfaces:
+        return (False, 'No WiFi devices found to manage.')
 
     for interface in interfaces.keys():
         # Grab a mutable copy of this interface's configuration

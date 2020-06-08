@@ -39,7 +39,7 @@ def set_handler_for_scheme(scheme, bundle_id, user=None):
     """
     if user is None:
         user = __grains__['current_user_uid']
-    with __utils__['cpe_mac_utils.user_context'](user):
+    with __utils__['misc_utils.user_context'](user):
         return LSSetDefaultHandlerForURLScheme(scheme, bundle_id) == 0
 
 
@@ -62,7 +62,7 @@ def get_handler_for_scheme(scheme, user=None):
     """
     if user is None:
         user = __grains__['current_user_uid']
-    with __utils__['cpe_mac_utils.user_context'](user):
+    with __utils__['misc_utils.user_context'](user):
         # This function is deprecated, but strangely the setter is not.
         # Also, there's no recommendation for a replacement, and the
         # closest functionality available is with

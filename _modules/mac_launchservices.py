@@ -3,6 +3,7 @@ import logging
 from LaunchServices import LSCopyDefaultHandlerForURLScheme, LSSetDefaultHandlerForURLScheme
 
 import salt.utils.platform
+
 # https://sheagcraig.github.io/configuring-and-reconfiguring-the-default-mail-reader-self-service-through-munki-and-a-tale-of-woe/
 
 
@@ -38,8 +39,8 @@ def set_handler_for_scheme(scheme, bundle_id, user=None):
         salt '*' handler.set mailto com.google.Chrome glorfindel
     """
     if user is None:
-        user = __grains__['current_user_uid']
-    with __utils__['misc_utils.user_context'](user):
+        user = __grains__["current_user_uid"]
+    with __utils__["misc_utils.user_context"](user):
         return LSSetDefaultHandlerForURLScheme(scheme, bundle_id) == 0
 
 
@@ -61,12 +62,11 @@ def get_handler_for_scheme(scheme, user=None):
         salt '*' handler.get mailto gotti
     """
     if user is None:
-        user = __grains__['current_user_uid']
-    with __utils__['misc_utils.user_context'](user):
+        user = __grains__["current_user_uid"]
+    with __utils__["misc_utils.user_context"](user):
         # This function is deprecated, but strangely the setter is not.
         # Also, there's no recommendation for a replacement, and the
         # closest functionality available is with
         # LSCopyDefaultApplicationURLForURL, which doesn't return a
         # bundle identifier, but rather a URL to the application.
-        return LSCopyDefaultHandlerForURLScheme(scheme) or ''
-
+        return LSCopyDefaultHandlerForURLScheme(scheme) or ""

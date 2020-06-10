@@ -11,13 +11,13 @@ import salt.utils.platform
 log = logging.getLogger(__name__)
 
 
-__virtualname__ = 'misc_utils'
+__virtualname__ = "misc_utils"
 
 
 def __virtual__():
     """Load only on Mac OS"""
     if not salt.utils.platform.is_darwin():
-        return (False, 'The misc_utils utility could not be loaded: utility only works on MacOS.')
+        return (False, "The misc_utils utility could not be loaded: utility only works on MacOS.")
 
     return __virtualname__
 
@@ -42,4 +42,3 @@ def user_context(uid):
         yield
     finally:
         os.seteuid(original_uid)
-

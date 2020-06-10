@@ -9,7 +9,7 @@ import salt.utils.platform
 log = logging.getLogger(__name__)
 
 
-__virtualname__ = 'launchservices'
+__virtualname__ = "launchservices"
 
 
 def __virtual__():
@@ -17,7 +17,7 @@ def __virtual__():
     if salt.utils.platform.is_darwin():
         return __virtualname__
     else:
-        return False, 'state.launchservices only available on macOS'
+        return False, "state.launchservices only available on macOS"
 
 
 def managed_handler_for_scheme(name, bundle_id, user=None):
@@ -44,30 +44,26 @@ def managed_handler_for_scheme(name, bundle_id, user=None):
             - onchanges:
               - prefs: com.tacotruck.cpe.mailto_handler
     """
-    ret = {'name': name,
-           'changes': {},
-           'result': False,
-           'comment': ''}
+    ret = {"name": name, "changes": {}, "result": False, "comment": ""}
 
-    result = __salt__['launchservices.get_handler_for_scheme'](name, user)
+    result = __salt__["launchservices.get_handler_for_scheme"](name, user)
 
     if result == bundle_id:
-        ret['result'] = True
-        ret['comment'] = 'Handler already set.'
+        ret["result"] = True
+        ret["comment"] = "Handler already set."
         return ret
 
-    if __opts__['test']:
-        ret['result'] = None
-        ret['comment'] = 'Handler {} would be set for {}'.format(bundle_id, name)
+    if __opts__["test"]:
+        ret["result"] = None
+        ret["comment"] = "Handler {} would be set for {}".format(bundle_id, name)
         return ret
 
-    __salt__['launchservices.set_handler_for_scheme'](name, bundle_id, user)
-    ret['result'] = __salt__['launchservices.get_handler_for_scheme'](name, user)
+    __salt__["launchservices.set_handler_for_scheme"](name, bundle_id, user)
+    ret["result"] = __salt__["launchservices.get_handler_for_scheme"](name, user)
 
-    if not ret['result']:
-        ret['comment'] = 'Handler {} was not set for {}'.format(bundle_id, name)
+    if not ret["result"]:
+        ret["comment"] = "Handler {} was not set for {}".format(bundle_id, name)
     else:
-        ret['comment'] = 'Handler {} was set for {}.'.format(bundle_id, name)
-        ret['changes'].update({name: {'old': result, 'new': name}})
+        ret["comment"] = "Handler {} was set for {}.".format(bundle_id, name)
+        ret["changes"].update({name: {"old": result, "new": name}})
     return ret
-

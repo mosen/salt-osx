@@ -5,7 +5,6 @@ import logging
 
 import salt.utils.platform
 
-
 log = logging.getLogger(__name__)
 
 

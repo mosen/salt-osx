@@ -7,7 +7,6 @@ from contextlib import contextmanager
 
 import salt.utils.platform
 
-
 log = logging.getLogger(__name__)
 
 

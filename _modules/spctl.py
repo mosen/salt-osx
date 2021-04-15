@@ -32,8 +32,8 @@ def enabled():
 
         salt '*' spctl.enabled
     '''
-    status = __salt__['cmd.retcode']('/usr/sbin/spctl --status')
-    return True if status == 0 else False
+    status = __salt__['cmd.retcode']('/usr/sbin/spctl --status', ignore_retcode=True)
+    return status == 0
 
 
 def enable():
@@ -46,8 +46,8 @@ def enable():
 
         salt '*' spctl.enable
     '''
-    status = __salt__['cmd.retcode']('/usr/sbin/spctl --master-enable')
-    return True if status == 0 else False
+    status = __salt__['cmd.retcode']('/usr/sbin/spctl --master-enable', ignore_retcode=True)
+    return status == 0
 
 
 def disable():
@@ -60,5 +60,5 @@ def disable():
 
         salt '*' spctl.disable
     '''
-    status = __salt__['cmd.retcode']('/usr/sbin/spctl --master-disable')
-    return True if status == 0 else False
+    status = __salt__['cmd.retcode']('/usr/sbin/spctl --master-disable', ignore_retcode=True)
+    return status == 0

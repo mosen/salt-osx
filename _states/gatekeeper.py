@@ -23,11 +23,7 @@ def enabled(name):
 
     spctl_enabled = __salt__['spctl.enabled']()
 
-    if not spctl_enabled:
-        ret['changes']['old'] = {'enabled': False}
-        ret['changes']['new'] = {'enabled': True}
-        ret['comment'] = 'Gatekeeper has been enabled'
-    else:
+    if spctl_enabled:
         ret['result'] = True
         ret['comment'] = 'Gatekeeper is already enabled'
         return ret
@@ -38,8 +34,13 @@ def enabled(name):
         return ret
 
     status = __salt__['spctl.enable']()
-    ret['result'] = True
+    if not status:
+        ret['comment'] = 'Gatekeeper failed to enable.'
+        return ret
 
+    ret['result'] = True
+    ret['comment'] = 'Gatekeeper has been enabled'
+    ret['changes']["GateKeeper"] = {"old": "disabled", "new": "enabled"}
     return ret
 
 
@@ -51,13 +52,9 @@ def disabled(name):
 
     spctl_enabled = __salt__['spctl.enabled']()
 
-    if spctl_enabled:
-        ret['changes']['old'] = {'enabled': True}
-        ret['changes']['new'] = {'enabled': False}
-        ret['comment'] = 'Gatekeeper has been disabled'
-    else:
+    if not spctl_enabled:
         ret['result'] = True
-        ret['comment'] = 'Gatekeeper is already disabled'
+        ret['comment'] = 'Gatekeeper is already enabled'
         return ret
 
     if __opts__['test'] == True:
@@ -66,6 +63,11 @@ def disabled(name):
         return ret
 
     status = __salt__['spctl.disable']()
-    ret['result'] = True
+    if not status:
+        ret['comment'] = 'Gatekeeper failed to disable.'
+        return ret
 
+    ret['result'] = True
+    ret['comment'] = 'Gatekeeper has been disabled'
+    ret['changes']["GateKeeper"] = {"old": "enabled", "new": "disabled"}
     return ret

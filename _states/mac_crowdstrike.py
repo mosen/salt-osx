@@ -1,5 +1,5 @@
-"""
-State to manage various pieces of crowdstrike. Some brief examples below.
+"""State to manage various pieces of crowdstrike. Some brief examples
+below.
 
 The is capable of handling both major versions of crowdstrike 5 and 6.
 If first looks for version 6. If found it will manage that version if not it
@@ -36,10 +36,23 @@ enable the sensor to give it time to send the Tags to the console then finish di
             - name: Disabled CrowdStrike Tag
             - tags:
                 - disabled
+
+This state also supports management of the CrowdStrike Network Filter. This portion
+of the app can be enabled or disabled accordingly.
+
+.. code-block:: yaml
+    apps_crowdstrike_ensure_network_filter_enabled:
+        crowdstrike.network_filter_enabled:
+            - name: com.crowdstrike.falcon.App
+
+    apps_crowdstrike_ensure_network_filter_disabled:
+        crowdstrike.network_filter_disabled:
+            - name: com.crowdstrike.falcon.App
 """
 import os
 
 import salt.utils.platform
+from salt.exceptions import CommandExecutionError
 
 __virtualname__ = 'crowdstrike'
 
@@ -213,4 +226,66 @@ def grouping_tags(name, tags=None):
 
     ret['comment'] = 'Successfully set CrowdStrike grouping tags.'
     ret['changes'].update({'grouping_tags': {'old': groups, 'new': tag_str}})
+    return ret
+
+
+def network_filter_enabled(name):
+    """Ensure the crowdstrike network filter is enabled.
+
+    name: app_id of the crowdstrike network filter.
+    """
+    ret = {'name': name, 'result': True, 'changes': {}, 'comment': ''}
+
+    # check the filter status.
+    status = __salt__['crowdstrike.network_filter_status'](name)
+
+    if status:
+        ret['comment'] = 'CrowdStrike\'s network filter is already enabled.'
+        return ret
+
+    if __opts__['test']:
+        ret['result'] = None
+        ret['comment'] = f'CrowdStrike\'s network filter would be enabled.'
+        return ret
+
+    enable_network_filter = __salt__['crowdstrike.enable_network_filter']()
+
+    if not enable_network_filter:
+        ret['result'] = False
+        ret['comment'] = 'Failed to enable CrowdStrike\'s network filter.'
+        return ret
+
+    ret['comment'] = 'Successfully enabled CrowdStrike\'s network filter.'
+    ret['changes'].update({'Crowdstrike Network Filter': {'old': 'Disabled', 'new': 'Enabled'}})
+    return ret
+
+
+def network_filter_disabled(name):
+    """Ensure the crowdstrike network filter is disabled.
+
+    name: app_id of the crowdstrike network filter.
+    """
+    ret = {'name': name, 'result': True, 'changes': {}, 'comment': ''}
+
+    # check the filter status.
+    status = __salt__['crowdstrike.network_filter_status'](name)
+
+    if not status:
+        ret['comment'] = 'CrowdStrike\'s network filter is already disabled.'
+        return ret
+
+    if __opts__['test']:
+        ret['result'] = None
+        ret['comment'] = f'CrowdStrike\'s network filter would be disabled.'
+        return ret
+
+    disable_network_filter = __salt__['crowdstrike.disable_network_filter']()
+
+    if not disable_network_filter:
+        ret['result'] = False
+        ret['comment'] = 'Failed to disable the CrowdStrike network filter.'
+        return ret
+
+    ret['comment'] = 'Successfully disabled CrowdStrike\'s network filter.'
+    ret['changes'].update({'Crowdstrike Network Filter': {'old': 'Enabled', 'new': 'Disabled'}})
     return ret

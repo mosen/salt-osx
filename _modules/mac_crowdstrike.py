@@ -5,6 +5,7 @@ import pathlib
 import plistlib
 
 import salt.utils.platform
+from Foundation import NSBundle
 from salt.exceptions import CommandExecutionError
 
 # Define the module's virtual name
@@ -389,3 +390,59 @@ def agent_id():
         return 'unknown'
     falcon_data = plistlib.loads(falcon_out.encode())
     return falcon_data.get('agent_info', {}).get('agentID')
+
+
+def network_filter_status(app_id):
+    """Get the status of the crowdstrike network filter.
+
+    :param str tags: app_id to look for.
+    :return: True if on and running, otherwise False.
+
+    :rtype: bool
+
+    .. code-block:: bash
+
+        salt '*' crowdstrike.network_filter_status
+    """
+    ## borrowed with <3 from https://gist.github.com/erikng/407366fce4a3df6e1a5f8f44733f89ea
+    enabled = False
+    NetworkExtension = NSBundle.bundleWithPath_(
+        '/System/Library/Frameworks/NetworkExtension.framework')
+    NEConfigurationManager = NetworkExtension.classNamed_('NEConfigurationManager')
+    manager = NEConfigurationManager.sharedManager()
+    err = manager.reloadFromDisk()
+    configs = manager.loadedConfigurations()
+
+    if configs:
+        for index, key in enumerate(configs):
+            config = configs[key]
+            if config.application() == app_id:
+                enabled = config.contentFilter().isEnabled()
+
+    return True if enabled else False
+
+
+def enable_network_filter():
+    """Attempts to enable the CrowdStrike Falcon network-filter.
+
+    :return: A Boolean if successfully enabled otherwise CommandExecutionError.
+
+    :rtype: bool
+
+    .. code-block:: bash
+        salt '*' crowdstrike.enable_network_filter
+    """
+    return __salt__['crowdstrike.falconctl']('enable-filter', timeout=30)
+
+
+def disable_network_filter():
+    """Attempts to disable the CrowdStrike Falcon network-filter.
+
+    :return: A Boolean if successfully disabled otherwise CommandExecutionError.
+
+    :rtype: bool
+
+    .. code-block:: bash
+        salt '*' crowdstrike.disable_network_filter
+    """
+    return __salt__['crowdstrike.falconctl']('disable-filter', timeout=30)
